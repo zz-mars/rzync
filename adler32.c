@@ -1,6 +1,6 @@
 #include "rzync.h"
 #define ADLER_MOD	65521
-#define RZYNC_BLOCK_SIZE	4096
+#define RZYNC_BLOCK_SIZE	16
 
 /* Implementation of adler32 algorithms */
 /* Algorithms specification :
@@ -24,7 +24,9 @@ typedef union {
 /* direct calculation of adler32 */
 static inline rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 {
-	unsigned int A = 1,B = n;
+	/* define A&B to be long long to avoid overflow */
+	unsigned long long A = 1;
+	unsigned long long B = n;
 	int i;
 	for(i=0;i<n;i++) {
 		unsigned char ch = buf[i];
