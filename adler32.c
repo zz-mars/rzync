@@ -35,7 +35,6 @@ static inline rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 	rolling_checksum_t rcksm;
 	rcksm.rolling_AB.A = A%ADLER_MOD;
 	rcksm.rolling_AB.B = B%ADLER_MOD;
-//	printf("direct -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
 	return rcksm;
 }
 
@@ -44,14 +43,13 @@ static inline rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned c
 {
 	unsigned int A = prev_adler.rolling_AB.A;
 	unsigned int B = prev_adler.rolling_AB.B;
-//	printf("rolling -- %u -- prevA -- %u prevB -- %u \n",prev_adler.rolling_checksum,A,B);
 	rolling_checksum_t rcksm;
 	rcksm.rolling_AB.A = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
 	rcksm.rolling_AB.B = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
-//	printf("rolling -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
 	return rcksm;
 }
 
+/*
 int main()
 {
 	char buf[BUFSIZ];
@@ -90,3 +88,4 @@ int main()
 	}
 	return 0;
 }
+*/
