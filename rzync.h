@@ -7,7 +7,7 @@
 #include <string.h>
 #include "list_head.h"
 
-//#define RZYNC_BLOCK_SIZE			4096
+#define RZYNC_BLOCK_SIZE			4096
 #define RZYNC_ROLLING_HASH_BITS		32
 #define RZYNC_MD5_CHECK_SUM_BITS	32
 

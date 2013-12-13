@@ -1,6 +1,5 @@
 #include "rzync.h"
 #define ADLER_MOD			(1<<16)
-#define RZYNC_BLOCK_SIZE	8000
 
 /* Implementation of adler32 algorithms */
 /* Algorithms specification :
@@ -14,8 +13,8 @@
 typedef union {
 	unsigned int rolling_checksum;
 	struct {
-		unsigned short AB[2];
-//		unsigned short B;
+		unsigned short A;
+		unsigned short B;
 	} rolling_AB;
 } rolling_checksum_t;
 
@@ -27,8 +26,6 @@ static inline rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 	/* define A&B to be long long to avoid overflow */
 	unsigned long long A = 1;
 	unsigned long long B = n;
-//	unsigned int A = 1;
-//	unsigned int B = n;
 	int i;
 	for(i=0;i<n;i++) {
 		unsigned char ch = buf[i];
@@ -36,22 +33,22 @@ static inline rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 		B += (ch * (n - i));
 	}
 	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.AB[0] = A%ADLER_MOD;
-	rcksm.rolling_AB.AB[1] = B%ADLER_MOD;
-	printf("direct -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
+	rcksm.rolling_AB.A = A%ADLER_MOD;
+	rcksm.rolling_AB.B = B%ADLER_MOD;
+//	printf("direct -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
 	return rcksm;
 }
 
 /* rolling style calculation */
 static inline rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,rolling_checksum_t prev_adler)
 {
-	unsigned int A = prev_adler.rolling_AB.AB[0];
-	unsigned int B = prev_adler.rolling_AB.AB[1];
-	printf("rolling -- %u -- prevA -- %u prevB -- %u \n",prev_adler.rolling_checksum,A,B);
+	unsigned int A = prev_adler.rolling_AB.A;
+	unsigned int B = prev_adler.rolling_AB.B;
+//	printf("rolling -- %u -- prevA -- %u prevB -- %u \n",prev_adler.rolling_checksum,A,B);
 	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.AB[0] = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
-	rcksm.rolling_AB.AB[1] = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
-	printf("rolling -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
+	rcksm.rolling_AB.A = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
+	rcksm.rolling_AB.B = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
+//	printf("rolling -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.AB[0],rcksm.rolling_AB.AB[1]);
 	return rcksm;
 }
 
@@ -71,11 +68,9 @@ int main()
 	}
 
 	close(fd);
-
-	/*
-	char buf[32] = "helloworldthishfjkahflkalkfaj";
-	int n = strlen(buf);
-	*/
+	
+//	char buf[32] = "helloworldthishfjkahflkalkfaj";
+//	int n = strlen(buf);
 
 	printf("%s -- %u\n",buf,n);
 
