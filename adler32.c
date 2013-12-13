@@ -1,11 +1,14 @@
 #include "rzync.h"
 #define ADLER_MOD	65521
-#define RZYNC_BLOCK_SIZE	16
+#define RZYNC_BLOCK_SIZE	4096
 
-/* implementation of adler32 algorithms */
-/* algorithms specification :
- * A = (1 + D1 + D2 +...+ Dn) mod 65521
- * B = (n*D1 + (n-1)*D2 +...+ Dn + n) mod 65521
+/* Implementation of adler32 algorithms */
+/* Algorithms specification :
+ * A = (1 + D1 + D2 +...+ Dn) mod ADLER_MOD
+ * B = (n*D1 + (n-1)*D2 +...+ Dn + n) mod ADLER_MOD
+ *
+ * A' = (A + Dn+1 -D1 + ADLER_MOD) mod ADLER_MOD
+ * B' = (A + B + Dn+1 + ADLER_MOD - 1 - (n + 1) * D1) mod ADLER_MOD
  * */
 
 typedef union {
@@ -16,10 +19,11 @@ typedef union {
 	} rolling_AB;
 } rolling_checksum_t;
 
+#define ROLLING_EQUAL(x,y)	(x.rolling_checksum == y.rolling_checksum)
+
 /* direct calculation of adler32 */
-unsigned int adler32_direct(unsigned char *buf,int n)
+static inline rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 {
-	rolling_checksum_t rcksm;
 	unsigned int A = 1,B = n;
 	int i;
 	for(i=0;i<n;i++) {
@@ -27,63 +31,59 @@ unsigned int adler32_direct(unsigned char *buf,int n)
 		A += ch;
 		B += (ch * (n - i));
 	}
-//	A %= ADLER_MOD;
-//	B %= ADLER_MOD;
+	rolling_checksum_t rcksm;
 	rcksm.rolling_AB.A = A%ADLER_MOD;
 	rcksm.rolling_AB.B = B%ADLER_MOD;
-//	printf("A -- %u B -- %u\n",A,B);
-//	return (B*(1<<16)+A);
-	return (unsigned int)rcksm;
+	printf("direct -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.A,rcksm.rolling_AB.B);
+	return rcksm;
 }
 
-unsigned int adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,unsigned int prev_adler)
+/* rolling style calculation */
+static inline rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,rolling_checksum_t prev_adler)
 {
-//	unsigned int B = prev_adler >> 16;
-//	unsigned int A = prev_adler - B*(1<<16);
-//	unsigned int AA = prev_adler & 0x00ff;
-	rolling_checksum_t rcksm = (rolling_checksum_t)prev_adler;
-	unsigned int B = rcksm.rolling_AB.B;
-	unsigned int A = rcksm.rolling_AB.A;
-	printf("prev_adler -- %u prevA -- %u prevB -- %u \n",prev_adler,A,B);
-//	unsigned int newA = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
-//	unsigned int newB = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
-//	printf("A -- %u B -- %u\n",newA,newB);
+	unsigned int A = prev_adler.rolling_AB.A;
+	unsigned int B = prev_adler.rolling_AB.B;
+	printf("rolling -- %u -- prevA -- %u prevB -- %u \n",prev_adler.rolling_checksum,A,B);
+	rolling_checksum_t rcksm;
 	rcksm.rolling_AB.A = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
 	rcksm.rolling_AB.B = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
-	return (unsigned int)rcksm;
-//	return (newB*(1<<16)+newA);
+	printf("rolling -- %u A -- %u B -- %u \n",rcksm.rolling_checksum,rcksm.rolling_AB.A,rcksm.rolling_AB.B);
+	return rcksm;
 }
 
 int main()
 {
-//	char buf[BUFSIZ];
-//	int fd = open("md5.c",O_RDONLY);
-//	if(fd < 0) {
-//		perror("open");
-//		return 1;
-//	}
-//
-//	int n = read(fd,buf,BUFSIZ);
-//	if(n < 0) {
-//		perror("read");
-//		return 1;
-//	}
-//
-//	close(fd);
+	char buf[BUFSIZ];
+	int fd = open("md5.c",O_RDONLY);
+	if(fd < 0) {
+		perror("open");
+		return 1;
+	}
+
+	int n = read(fd,buf,BUFSIZ);
+	if(n < 0) {
+		perror("read");
+		return 1;
+	}
+
+	close(fd);
+
+	/*
 	char buf[32] = "helloworldthishfjkahflkalkfaj";
-	printf("%s\n",buf);
 	int n = strlen(buf);
+	*/
+
+	printf("%s -- %u\n",buf,n);
 
 	int end_idx = RZYNC_BLOCK_SIZE - 1;
 	int start_idx = 0;
-	unsigned int adlerv = adler32_direct(buf,RZYNC_BLOCK_SIZE);
-	printf("first block -- %u\n",adlerv);
+	rolling_checksum_t adlerv = adler32_direct(buf,RZYNC_BLOCK_SIZE);
 	while(end_idx < n) {
 		unsigned char old_ch = buf[start_idx++];
 		unsigned char new_ch = buf[++end_idx];
-		unsigned int adlv_direct = adler32_direct(buf+start_idx,RZYNC_BLOCK_SIZE);
-		unsigned int adlv_rolling = adler32_rolling(old_ch,new_ch,RZYNC_BLOCK_SIZE,adlerv);
-		if(adlv_direct != adlv_rolling) {
+		rolling_checksum_t adlv_direct = adler32_direct(buf+start_idx,RZYNC_BLOCK_SIZE);
+		rolling_checksum_t adlv_rolling = adler32_rolling(old_ch,new_ch,RZYNC_BLOCK_SIZE,adlerv);
+		if(!ROLLING_EQUAL(adlv_direct,adlv_rolling)) {
 			fprintf(stderr,"ROLLING DOES NOT EUQAL TO DIRECT CALCULATED VALUE!\n");
 			return 1;
 		}
