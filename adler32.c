@@ -29,8 +29,8 @@ unsigned int adler32_direct(unsigned char *buf,int n)
 	}
 //	A %= ADLER_MOD;
 //	B %= ADLER_MOD;
-	rcksm.rolling_AB.A = (short)A%ADLER_MOD;
-	rcksm.rolling_AB.B = (short)B%ADLER_MOD;
+	rcksm.rolling_AB.A = A%ADLER_MOD;
+	rcksm.rolling_AB.B = B%ADLER_MOD;
 //	printf("A -- %u B -- %u\n",A,B);
 //	return (B*(1<<16)+A);
 	return (unsigned int)rcksm;
@@ -42,14 +42,14 @@ unsigned int adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,uns
 //	unsigned int A = prev_adler - B*(1<<16);
 //	unsigned int AA = prev_adler & 0x00ff;
 	rolling_checksum_t rcksm = (rolling_checksum_t)prev_adler;
-	unsigned short B = rcksm.rolling_AB.B;
-	unsigned short A = rcksm.rolling_AB.A;
+	unsigned int B = rcksm.rolling_AB.B;
+	unsigned int A = rcksm.rolling_AB.A;
 	printf("prev_adler -- %u prevA -- %u prevB -- %u \n",prev_adler,A,B);
 //	unsigned int newA = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
 //	unsigned int newB = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
 //	printf("A -- %u B -- %u\n",newA,newB);
-	rcksm.rolling_AB.A = (short)(A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
-	rcksm.rolling_AB.B = (short)(B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
+	rcksm.rolling_AB.A = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
+	rcksm.rolling_AB.B = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
 	return (unsigned int)rcksm;
 //	return (newB*(1<<16)+newA);
 }
