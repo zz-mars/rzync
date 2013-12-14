@@ -81,9 +81,9 @@ void checksum_hashtable_destory(checksum_hashtable_t *ht)
 	free(ht);
 }
 
-/* ----------------- client struct pool ------------------ */
+/* ----------------- rzync_dst_t pool ------------------ */
 /* initialize to a null list */
-rzyncdst_freelist_t *client_freelist_init(void)
+rzyncdst_freelist_t *rzyncdst_freelist_init(void)
 {
 	rzyncdst_freelist_t *fl = (rzyncdst_freelist_t*)malloc(sizeof(rzyncdst_freelist_t));
 	if(!fl) {
@@ -95,7 +95,7 @@ rzyncdst_freelist_t *client_freelist_init(void)
 	return fl;
 }
 
-void client_freelist_destory(rzyncdst_freelist_t *fl)
+void rzyncdst_freelist_destory(rzyncdst_freelist_t *fl)
 {
 	rzyncdst_pool_t *p = fl->pool_head;
 	while(p) {
@@ -109,7 +109,7 @@ void client_freelist_destory(rzyncdst_freelist_t *fl)
 	free(fl);
 }
 
-rzync_dst_t *get_client(rzyncdst_freelist_t *fl)
+rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl)
 {
 	rzync_dst_t *cl;
 	if(fl->client_nr == 0) {
@@ -150,7 +150,7 @@ rzync_dst_t *get_client(rzyncdst_freelist_t *fl)
 	return cl;
 }
 
-void put_client(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
+void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
 {
 	list_add(&cl->flist,&fl->free_list);
 	fl->client_nr++;
@@ -187,19 +187,35 @@ void put_client(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
  *   ---------------------------------
  * */
 
-int init_rzyncins(rzync_dst_t *ins)
+int init_rzyncsrc(rzync_src_t *src,char *filename)
 {
-	memset(ins,0,sizeof(rzync_dst_t));
-}
-
-int prepare_sync_request(rzync_dst_t *client)
-{
+	memset(src,0,sizeof(rzync_src_t));
 	int filenamelen = strlen(filename);
+	if(filenamelen >= RZYNC_MAX_NAME_LENGTH) {
+		fprintf(stderr,"file name too long!\n");
+		return 1;
+	}
+	strncpy(src->filename,filename,filenamelen);
 	struct stat stt;
 	if(stat(filename,&stt) != 0) {
 		perror("stat");
 		return 1;
 	}
-	unsigned long long size = stt.st_size;	// total size in bytes
+	src->size = stt.st_size;	// total size in bytes
+	src->mtime = stt.st_mtime;
+	src->filefd = open(filename,O_RDONLY);
+	if(src->filefd < 0) {
+		perror("open file");
+		return 1;
+	}
+	src->state = SRC_INIT;
+	src->offset = 0;
+	src->length = 0;
+
+	return 0;
+}
+
+int prepare_sync_request(rzync_dst_t *client)
+{
 }
 

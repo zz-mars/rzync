@@ -58,19 +58,33 @@ checksum_hashtable_t *checksum_hashtable_init(unsigned int nr);
 void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
 
-/* ----------------- client struct ------------------ */
-#define RZYNC_CLIENT_BUF_SIZE	(1<<14)	// 16KB for client buffer
+#define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
+/* ----------------- dest side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
 	unsigned long long size;	// file size in bytes
 	time_t mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
 	int sockfd;	// socket to read and write
+	enum src_state state;	// current state
+	checksum_hashtable_t *hashtable;
 	int length;	// total length in the buffer
 	int offset;	// current offset in the buffer
-	char state;	// current state
+	char buf[RZYNC_BUF_SIZE];
+} rzync_src_t;
+/* ----------------- dest side struct ------------------ */
+typedef struct {
+	char filename[RZYNC_MAX_NAME_LENGTH];	
+	unsigned long long size;	// file size in bytes
+	time_t mtime;	// modification time of the file from the src side
+	int filefd;	// file fd
+	int dstfd;	// the file to be written
+	int sockfd;	// socket to read and write
+	enum dst_state state;	// current state
 	struct list_head flist;	// for the free list
-	char buf[RZYNC_CLIENT_BUF_SIZE];
+	int length;	// total length in the buffer
+	int offset;	// current offset in the buffer
+	char buf[RZYNC_BUF_SIZE];
 } rzync_dst_t;
 #define ptr_clientof(lh)	containerof(lh,rzync_dst_t,flist)
 
@@ -88,10 +102,10 @@ typedef struct {
 
 #define RZYNC_CLIENT_POOL_SIZE	1024	// default client pool size
 
-rzyncdst_freelist_t *client_freelist_init(void);
-void client_freelist_destory(rzyncdst_freelist_t *fl);
-rzync_dst_t *get_client(rzyncdst_freelist_t *fl);
-void put_client(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
+rzyncdst_freelist_t *rzyncdst_freelist_init(void);
+void rzyncdst_freelist_destory(rzyncdst_freelist_t *fl);
+rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl);
+void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
 
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
 #define RZYNC_FILE_INFO_BUF_SIZE		512	// 512 bytes for file infomation buffer
