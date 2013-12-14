@@ -1,5 +1,6 @@
 #ifndef __RZYNC_H
 #define __RZYNC_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -66,7 +67,7 @@ static inline rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned c
 /* checksum information */
 typedef struct {
 	unsigned int block_nr;
-	char rolling_checksum[RZYNC_ROLLING_HASH_BITS];
+	rolling_checksum_t rcksm;
 	char md5[RZYNC_MD5_CHECK_SUM_BITS];
 	struct list_head hash;
 } checksum_t;
