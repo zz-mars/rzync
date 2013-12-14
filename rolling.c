@@ -13,6 +13,15 @@
  * B' = (A + B + Dn+1 + ADLER_MOD - 1 - (n + 1) * D1) mod ADLER_MOD
  * */
 
+static inline unsigned int pack_rolling_checksum(unsigned short AA,unsigned short BB)
+{
+	unsigned int rt = 0;
+	rt |= BB;
+	rt <<= 16;
+	rt |= AA;
+	return rt;
+}
+
 /* direct calculation of adler32 */
 static inline unsigned int adler32_direct(unsigned char *buf,int n)
 {
@@ -25,11 +34,9 @@ static inline unsigned int adler32_direct(unsigned char *buf,int n)
 		A += ch;
 		B += (ch * (n - i));
 	}
-	A %= ADLER_MOD;
-	B %= ADLER_MOD;
-//	printf("A -- %llu B -- %llu\n",A,B);
-	unsigned int rcksm = B * (1<<16) + A;
-	return rcksm;
+	unsigned short AA = A % ADLER_MOD;
+	unsigned short BB = B % ADLER_MOD;
+	return pack_rolling_checksum(AA,BB);
 }
 
 /* rolling style calculation */
@@ -39,13 +46,13 @@ static inline unsigned int adler32_rolling(unsigned char old_ch,unsigned char ne
 	 * B takes the most significant 16 bits while
 	 * A takes the less significant 16 bits
 	 * HOWEVER THIS ASSUMPTION IS WRONG! */
+	unsigned int A = prev_adler & 0xff;
 	unsigned int B = prev_adler >> 16;
-	unsigned int A = prev_adler - B * (1<<16);	/* very inefficient here! */
 	printf("prevA -- %u prevB -- %u\n",A,B);
-	unsigned int newA = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
-	unsigned int newB = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
+	unsigned short newA = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
+	unsigned short newB = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
 	printf("newA -- %u newB -- %u\n",newA,newB);
-	return (newB * (1<<16) + newA);
+	return pack_rolling_checksum(newA,newB);
 }
 
 int main()
