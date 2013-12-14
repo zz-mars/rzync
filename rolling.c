@@ -1,6 +1,7 @@
 #include "rzync.h"
 /* why 65521 does not work while 2^16 do? */
-#define ADLER_MOD			(1<<16)
+//#define ADLER_MOD			(1<<16)
+#define ADLER_MOD			65521
 #define RZYNC_BLOCK_SIZE	4096
 
 /* Implementation of adler32 algorithms */

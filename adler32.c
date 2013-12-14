@@ -1,5 +1,7 @@
 #include "rzync.h"
-#define ADLER_MOD			(1<<16)
+
+//#define ADLER_MOD			(1<<16)
+#define ADLER_MOD			65521
 
 /* Implementation of adler32 algorithms */
 /* Algorithms specification :
@@ -49,7 +51,6 @@ static inline rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned c
 	return rcksm;
 }
 
-/*
 int main()
 {
 	char buf[BUFSIZ];
@@ -70,7 +71,7 @@ int main()
 //	char buf[32] = "helloworldthishfjkahflkalkfaj";
 //	int n = strlen(buf);
 
-	printf("%s -- %u\n",buf,n);
+//	printf("%s -- %u\n",buf,n);
 
 	int end_idx = RZYNC_BLOCK_SIZE - 1;
 	int start_idx = 0;
@@ -88,4 +89,3 @@ int main()
 	}
 	return 0;
 }
-*/
