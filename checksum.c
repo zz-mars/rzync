@@ -81,29 +81,82 @@ void checksum_hashtable_destory(checksum_hashtable_t *ht)
 	free(ht);
 }
 
+/* ----------------- client struct pool ------------------ */
+/* initialize to a null list */
+rzyncdst_freelist_t *client_freelist_init(void)
+{
+	rzyncdst_freelist_t *fl = (rzyncdst_freelist_t*)malloc(sizeof(rzyncdst_freelist_t));
+	if(!fl) {
+		return NULL;
+	}
+	fl->client_nr = 0;
+	fl->pool_head = NULL;
+	list_head_init(&fl->free_list);
+	return fl;
+}
+
+void client_freelist_destory(rzyncdst_freelist_t *fl)
+{
+	rzyncdst_pool_t *p = fl->pool_head;
+	while(p) {
+		rzyncdst_pool_t *q = p->next;
+		if(p->clients) {
+			free(p->clients);
+		}
+		free(p);
+		p = q;
+	}
+	free(fl);
+}
+
+rzync_dst_t *get_client(rzyncdst_freelist_t *fl)
+{
+	rzync_dst_t *cl;
+	if(fl->client_nr == 0) {
+		/* add more elements */
+		rzyncdst_pool_t *cp = (rzyncdst_pool_t*)malloc(sizeof(rzyncdst_pool_t));
+		if(!cp) {
+			return NULL;
+		}
+		cp->client_nr = RZYNC_CLIENT_POOL_SIZE;
+		cp->next = NULL;
+		cp->clients = (rzync_dst_t*)malloc(cp->client_nr*sizeof(rzync_dst_t));
+		if(!cp->clients) {
+			free(cp);
+			return NULL;
+		}
+		/* insert to free list */
+		int i;
+		for(i=0;i<cp->client_nr-1;i++) {
+			list_add(&cp->clients[i].flist,&fl->free_list);
+		}
+		/* insert to pool list */
+		if(!fl->pool_head) {
+			fl->pool_head = cp;
+		}else {
+			cp->next = fl->pool_head->next;
+			fl->pool_head = cp;
+		}
+		fl->client_nr += (cp->client_nr - 1);
+		/* return the last one */
+		cl = &cp->clients[cp->client_nr-1];
+	} else {
+		/* get one directly from free list */
+		struct list_head *l = fl->free_list.next;
+		list_del(l);
+		fl->client_nr--;
+		cl = ptr_clientof(l);
+	}
+	return cl;
+}
+
+void put_client(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
+{
+	list_add(&cl->flist,&fl->free_list);
+	fl->client_nr++;
+}
+
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
-
-#define RZYNC_FILE_INFO_BUF_SIZE		512	// 512 bytes for file infomation buffer
-#define RZYNC_CHECKSUM_HEADER_SIZE		32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_BUF_SIZE			128	// 128 bytes for each checksum
-
-enum src_state {
-	SRC_INIT = 0,	// ready to send sync request
-	SRC_REQ_SENT,	// request sent
-	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
-	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
-	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
-	SRC_DONE		// all done
-};
-
-enum dst_state {
-	DST_INIT = 0,	// ready to receive sync request
-	DST_REQ_RECEIVED,
-	DST_CHKSM_HEADER_SENT,
-	DST_CHKSM_ALL_SENT,
-	DST_DELTA_FILE_RECEIVED,
-	DST_DONE
-};
 
 /* 1) The destination of the synchronization listens on a specific port
  * 2) The source side of the synchronization sends the information of 
@@ -133,4 +186,20 @@ enum dst_state {
  *   $md5\n
  *   ---------------------------------
  * */
+
+int init_rzyncins(rzync_dst_t *ins)
+{
+	memset(ins,0,sizeof(rzync_dst_t));
+}
+
+int prepare_sync_request(rzync_dst_t *client)
+{
+	int filenamelen = strlen(filename);
+	struct stat stt;
+	if(stat(filename,&stt) != 0) {
+		perror("stat");
+		return 1;
+	}
+	unsigned long long size = stt.st_size;	// total size in bytes
+}
 
