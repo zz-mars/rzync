@@ -13,6 +13,7 @@
 #include <netdb.h>
 //#include <event2/event.h>
 #include <event.h>
+#include <errno.h>
 #include "list_head.h"
 #include "md5.h"
 
@@ -89,7 +90,7 @@ enum dst_state {
 };
 
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
-/* ----------------- dest side struct ------------------ */
+/* ----------------- src side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
 	unsigned long long size;	// file size in bytes
@@ -109,6 +110,8 @@ typedef struct {
 	time_t mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
 	int dstfd;	// the file to be written
+	struct event sock_read;
+	struct event sock_write;
 	int sockfd;	// socket to read and write
 	enum dst_state state;	// current state
 	struct list_head flist;	// for the free list

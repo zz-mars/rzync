@@ -1,5 +1,6 @@
 CC_FLAGS = -g -o
-BINS = adler32 s c
+LINK_LIBS = -levent
+BINS = adler32 src dst
 .PHONY : all
 all : adler32
 
@@ -7,11 +8,11 @@ adler32 : adler32_test.o
 	gcc $? $(CC_FLAGS) $@
 
 .PHONY : cs
-cs : c s
-c : c.o
+cs : dst src
+src : src.o
 	gcc $? $(CC_FLAGS) $@ 
-s : s.o
-	gcc $? $(CC_FLAGS) $@ -levent
+dst : dst.o checksum.o
+	gcc $? $(CC_FLAGS) $@ $(LINK_LIBS)
 
 .PHONY : clean
 clean :

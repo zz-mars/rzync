@@ -1,4 +1,5 @@
 #include "rzync.h"
+#include "util.h"
 
 int main()
 {
@@ -10,7 +11,7 @@ int main()
 	addr.sin_family = AF_INET;
 //	inet_pton(AF_INET,ZZIP,(void*)&addr.sin_addr);
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	addr.sin_port = htons(ZZPORT);
+	addr.sin_port = htons(RZYNC_PORT);
 
 	int fd = socket(AF_INET,SOCK_STREAM,0);
 
@@ -24,6 +25,10 @@ int main()
 		return 1;
 	}
 
+	char buf[BUFSIZ] = "hello,world,this is zz";
+	write(fd,buf,strlen(buf));
+	sleep(3);
+	write(fd,buf,strlen(buf));
 	close(fd);
 	return 0;
 }
