@@ -11,9 +11,13 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <event2/event.h>
+//#include <event2/event.h>
+#include <event.h>
 #include "list_head.h"
 #include "md5.h"
+
+#define RZYNC_IP	"192.168.0.23"
+#define RZYNC_PORT	19717
 
 #define offzetof(member,type)		((unsigned int) &((type*)0)->member)
 
