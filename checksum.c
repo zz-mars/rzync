@@ -107,12 +107,15 @@ void rzyncdst_freelist_destory(rzyncdst_freelist_t *fl)
 		p = q;
 	}
 	free(fl);
+	printf("free list destroyed...........\n");
 }
 
 rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl)
 {
 	rzync_dst_t *cl;
+//	printf("current in the pool --------- %d\n",fl->client_nr);
 	if(fl->client_nr == 0) {
+//		printf("need add some rzync_dst_t in the pool........\n");
 		/* add more elements */
 		rzyncdst_pool_t *cp = (rzyncdst_pool_t*)malloc(sizeof(rzyncdst_pool_t));
 		if(!cp) {
@@ -147,6 +150,7 @@ rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl)
 		fl->client_nr--;
 		cl = ptr_clientof(l);
 	}
+//	printf("after get one from the pool --------- %d\n",fl->client_nr);
 	return cl;
 }
 
@@ -154,9 +158,15 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
 {
 	list_add(&cl->flist,&fl->free_list);
 	fl->client_nr++;
+//	printf("after put one to the pool, in the pool now --------- %d\n",fl->client_nr);
 }
 
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
+/*
+#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation buffer
+#define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
+#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
+*/
 
 /* 1) The destination of the synchronization listens on a specific port
  * 2) The source side of the synchronization sends the information of 
@@ -186,36 +196,4 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
  *   $md5\n
  *   ---------------------------------
  * */
-
-int init_rzyncsrc(rzync_src_t *src,char *filename)
-{
-	memset(src,0,sizeof(rzync_src_t));
-	int filenamelen = strlen(filename);
-	if(filenamelen >= RZYNC_MAX_NAME_LENGTH) {
-		fprintf(stderr,"file name too long!\n");
-		return 1;
-	}
-	strncpy(src->filename,filename,filenamelen);
-	struct stat stt;
-	if(stat(filename,&stt) != 0) {
-		perror("stat");
-		return 1;
-	}
-	src->size = stt.st_size;	// total size in bytes
-	src->mtime = stt.st_mtime;
-	src->filefd = open(filename,O_RDONLY);
-	if(src->filefd < 0) {
-		perror("open file");
-		return 1;
-	}
-	src->state = SRC_INIT;
-	src->offset = 0;
-	src->length = 0;
-
-	return 0;
-}
-
-int prepare_sync_request(rzync_dst_t *client)
-{
-}
 

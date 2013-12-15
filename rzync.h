@@ -11,6 +11,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <assert.h>
 //#include <event2/event.h>
 #include <event.h>
 #include <errno.h>
@@ -67,9 +68,9 @@ checksum_hashtable_t *checksum_hashtable_init(unsigned int nr);
 void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
-#define RZYNC_FILE_INFO_BUF_SIZE		512	// 512 bytes for file infomation buffer
-#define RZYNC_CHECKSUM_HEADER_SIZE		32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_BUF_SIZE			128	// 128 bytes for each checksum
+#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation 
+#define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
+#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
 
 enum src_state {
 	SRC_INIT = 0,	// ready to send sync request
@@ -94,7 +95,7 @@ enum dst_state {
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
 	unsigned long long size;	// file size in bytes
-	time_t mtime;	// modification time of the file from the src side
+	long long mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
 	int sockfd;	// socket to read and write
 	enum src_state state;	// current state
@@ -107,11 +108,11 @@ typedef struct {
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
 	unsigned long long size;	// file size in bytes
-	time_t mtime;	// modification time of the file from the src side
+	long long mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
 	int dstfd;	// the file to be written
-	struct event sock_read;
-	struct event sock_write;
+	struct event ev_read;
+	struct event ev_write;
 	int sockfd;	// socket to read and write
 	enum dst_state state;	// current state
 	struct list_head flist;	// for the free list

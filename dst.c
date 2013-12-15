@@ -7,6 +7,7 @@ rzyncdst_freelist_t * free_list = NULL;
 
 void rzyncdst_ins_cleanup(rzync_dst_t *ins)
 {
+	printf("cleanup called................\n");
 	close(ins->filefd);
 	close(ins->dstfd);
 	close(ins->sockfd);
@@ -14,23 +15,92 @@ void rzyncdst_ins_cleanup(rzync_dst_t *ins)
 	put_rzyncdst(free_list,ins);
 }
 
-void on_read(int sock,short event,void *arg)
+enum on_read_rt {
+	ON_READ_INIT_OK = 0,
+	ON_READ_INIT_ERR_OK,
+	ON_READ_INIT_ERR_NEED_CLEADUP
+};
+/* read the sync req header */
+int on_read_init(rzync_dst_t *ins)
 {
-	rzync_dst_t *ins = (rzync_dst_t*)arg;
-	if(read(sock,ins->buf,128) < 0) {
+	int n = read(ins->sockfd,
+			ins->buf + ins->length,
+			RZYNC_FILE_INFO_SIZE - ins->length);
+	if (n < 0) {
 		if(!(errno == EWOULDBLOCK || errno == EAGAIN)) {
 			/* handle error */
-			goto clean_up;
-		}
+			return ON_READ_INIT_ERR_NEED_CLEADUP;
+		} else { return ON_READ_INIT_ERR_OK; }
+	} else if(n == 0) {return ON_READ_INIT_ERR_NEED_CLEADUP;}
+
+	/* when n > 0, update ins->length */
+	ins->length += n;
+	if(ins->length < RZYNC_FILE_INFO_SIZE) {
+		/* request header not all received 
+		 * DO NOT CHANGE THE STATE NOW */
+		return ON_READ_INIT_OK;
 	}
 
 	printf("from client : %s\n",ins->buf);
-	event_set(&ins->sock_read,sock,EV_READ,on_read,(void*)ins);
-	if(event_base_set(ev_base,&ins->sock_read) != 0) {
-		fprintf(stderr,"event_base_set fail!\n");
-		goto clean_up;
+
+	/* deal with the request here */
+	char *p = ins->buf;
+	int filenamelen = str2i(&p,'#','\n');
+	if(filenamelen == STR2I_PARSE_FAIL ||
+			filenamelen > (RZYNC_MAX_NAME_LENGTH-1) ||
+			*p++ != '$') {
+		/* illegal request */
+		return ON_READ_INIT_ERR_NEED_CLEADUP;
 	}
-	if(event_add(&ins->sock_read,NULL) != 0) {
+	memset(ins->filename,0,RZYNC_MAX_NAME_LENGTH);
+	strncpy(ins->filename,p,filenamelen);
+	p += (filenamelen+1);
+	long long fsize = str2ll(&p,'$','\n');
+	if(fsize == STR2LL_PARSE_FAIL) {
+		return ON_READ_INIT_ERR_NEED_CLEADUP;
+	}
+	ins->size = fsize;
+	long long mtime = str2ll(&p,'$','\n');
+	if(mtime == STR2LL_PARSE_FAIL) {
+		return ON_READ_INIT_ERR_NEED_CLEADUP;
+	}
+	ins->mtime = mtime;
+	/* request parse ok */
+	printf("/* request parse ok, update to new state */\n");
+	ins->state = DST_REQ_RECEIVED;
+
+	return ON_READ_INIT_OK;
+}
+
+void on_read(int sock,short event,void *arg)
+{
+	rzync_dst_t *ins = (rzync_dst_t*)arg;
+	assert(sock == ins->sockfd);
+	switch(ins->state) {
+		case DST_INIT:
+			/* read RZYNC_FILE_INFO */
+			{
+				enum on_read_rt i = on_read_init(ins);
+				if(i == ON_READ_INIT_ERR_NEED_CLEADUP) {
+					goto clean_up;
+				}
+				goto re_add_read_event;
+			}
+		case DST_REQ_RECEIVED:
+			break;
+		case DST_CHKSM_HEADER_SENT:
+			break;
+		case DST_CHKSM_ALL_SENT:
+			/* ready to receive delta file */
+			break;
+		case DST_DELTA_FILE_RECEIVED:
+		case DST_DONE:
+		default:
+			break;
+	}
+
+re_add_read_event:
+	if(event_add(&ins->ev_read,NULL) != 0) {
 		fprintf(stderr,"event_add fail!\n");
 		goto clean_up;
 	}
@@ -39,22 +109,28 @@ clean_up:
 	rzyncdst_ins_cleanup(ins);
 }
 
+void on_write(int sock,short event,void *arg)
+{
+}
+
 void on_conenct(int sock,short event,void *arg)
 {
-	rzyncdst_freelist_t *fl = (rzyncdst_freelist_t*)arg;
 	struct sockaddr_in claddr;
 	int claddrlen;
 
 	int connfd = accept(sock,(struct sockaddr*)&claddr,&claddrlen);
 
 	if(connfd < 0) {
-		perror("accept");
+		if(!(errno == EAGAIN || errno == EWOULDBLOCK)) {
+			perror("accept");
+		}
+		// return anyway
 		return;
 	}
 
 	printf("new connection comes\n");
-//	close(connfd);
-	rzync_dst_t *ins = get_rzyncdst(fl);
+
+	rzync_dst_t *ins = get_rzyncdst(free_list);
 	if(!ins) {
 		fprintf(stderr,"get_rzyncdst fail!\n");
 		return;
@@ -66,8 +142,19 @@ void on_conenct(int sock,short event,void *arg)
 	ins->length = ins->offset = 0;
 	
 	/* set read event */
-	event_set(&ins->sock_read,connfd,EV_READ,on_read,(void*)ins);
+	event_set(&ins->ev_read,ins->sockfd,EV_READ,on_read,(void*)ins);
+	if(event_base_set(ev_base,&ins->ev_read) != 0) {
+		fprintf(stderr,"event_base_set fail!\n");
+		goto clean_up;
+	}
+	// add read event
+	if(event_add(&ins->ev_read,NULL) != 0) {
+		fprintf(stderr,"event_add fail!\n");
+		goto clean_up;
+	}
 	return;
+clean_up:
+	rzyncdst_ins_cleanup(ins);
 }
 
 
@@ -110,7 +197,7 @@ int main()
 	}
 
 	struct event e_lfd;
-	event_set(&e_lfd,lfd,EV_READ | EV_PERSIST,on_conenct,(void*)free_list);
+	event_set(&e_lfd,lfd,EV_READ | EV_PERSIST,on_conenct,NULL);
 	if(event_base_set(ev_base,&e_lfd) != 0) {
 		fprintf(stderr,"event_base_set fail!\n");
 		return 1;
@@ -124,8 +211,10 @@ int main()
 		event_base_loop(ev_base,0);
 	}
 
+	/* cleanup stuff */
 	event_base_free(ev_base);
 	rzyncdst_freelist_destory(free_list);
+
 	return 0;
 }
 
