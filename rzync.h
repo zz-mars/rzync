@@ -8,14 +8,18 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <event2/event.h>
 #include "list_head.h"
 #include "md5.h"
 
-#define offsetof(member,type)		((unsigned int) &((type*)0)->member)
+#define offzetof(member,type)		((unsigned int) &((type*)0)->member)
 
 #define containerof(ptr,type,member)	({	\
 		typeof(((type*)0)->member) *_fp = ptr;	\
-		(type*)((unsigned char*)_fp - offsetof(member,type));	})
+		(type*)((unsigned char*)_fp - offzetof(member,type));	})
 
 #define RZYNC_BLOCK_SIZE			4096
 #define RZYNC_MD5_CHECK_SUM_BITS	32
@@ -57,6 +61,28 @@ typedef struct {
 checksum_hashtable_t *checksum_hashtable_init(unsigned int nr);
 void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
+/* ----------------- PROTOCOL SPECIFICATION ------------------ */
+#define RZYNC_FILE_INFO_BUF_SIZE		512	// 512 bytes for file infomation buffer
+#define RZYNC_CHECKSUM_HEADER_SIZE		32	// 32 bytes for checksum header
+#define RZYNC_CHECKSUM_BUF_SIZE			128	// 128 bytes for each checksum
+
+enum src_state {
+	SRC_INIT = 0,	// ready to send sync request
+	SRC_REQ_SENT,	// request sent
+	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
+	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
+	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
+	SRC_DONE		// all done
+};
+
+enum dst_state {
+	DST_INIT = 0,	// ready to receive sync request
+	DST_REQ_RECEIVED,
+	DST_CHKSM_HEADER_SENT,
+	DST_CHKSM_ALL_SENT,
+	DST_DELTA_FILE_RECEIVED,
+	DST_DONE
+};
 
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
 /* ----------------- dest side struct ------------------ */
@@ -106,29 +132,6 @@ rzyncdst_freelist_t *rzyncdst_freelist_init(void);
 void rzyncdst_freelist_destory(rzyncdst_freelist_t *fl);
 rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl);
 void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
-
-/* ----------------- PROTOCOL SPECIFICATION ------------------ */
-#define RZYNC_FILE_INFO_BUF_SIZE		512	// 512 bytes for file infomation buffer
-#define RZYNC_CHECKSUM_HEADER_SIZE		32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_BUF_SIZE			128	// 128 bytes for each checksum
-
-enum src_state {
-	SRC_INIT = 0,	// ready to send sync request
-	SRC_REQ_SENT,	// request sent
-	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
-	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
-	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
-	SRC_DONE		// all done
-};
-
-enum dst_state {
-	DST_INIT = 0,	// ready to receive sync request
-	DST_REQ_RECEIVED,
-	DST_CHKSM_HEADER_SENT,
-	DST_CHKSM_ALL_SENT,
-	DST_DELTA_FILE_RECEIVED,
-	DST_DONE
-};
 
 #endif
 
