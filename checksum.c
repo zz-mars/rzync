@@ -161,39 +161,3 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
 //	printf("after put one to the pool, in the pool now --------- %d\n",fl->client_nr);
 }
 
-/* ----------------- PROTOCOL SPECIFICATION ------------------ */
-/*
-#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation buffer
-#define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
-*/
-
-/* 1) The destination of the synchronization listens on a specific port
- * 2) The source side of the synchronization sends the information of 
- *	  the file to be synchronized to dst. 
- *	  The information to be sent : <name,size,modification time>
- *	  Use ASCII string as the information format.
- *	  Format specification :
- *   ---------------------------------
- *	  #length_of_file_name\n
- *	  $filename\n
- *	  $size\n
- *	  $modification_time\n
- *   ---------------------------------
- * 3) Once the dst side receives this information, it checks file specified 
- *   in its local side, get the size. Send the block number and block size
- *   to the src side. The Header format:
- *   ---------------------------------
- *   $block_nr\n
- *   $block_size\n
- *   ---------------------------------
- *   it calculates the rolling hash and md5 of the block of local file,
- *   send the checksum information to src side in the following format:
- *   ---------------------------------
- *   $block_num\n
- *   $rolling_checksum.A\n
- *   $rolling_checksum.B\n
- *   $md5\n
- *   ---------------------------------
- * */
-
