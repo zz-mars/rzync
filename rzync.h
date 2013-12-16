@@ -109,7 +109,16 @@ typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
 	unsigned long long size;	// file size in bytes
 	long long mtime;	// modification time of the file from the src side
-	int filefd;	// file fd
+	struct {
+		int filefd;
+		unsigned int block_nr;
+		unsigned int block_sz;
+	} dst_local_file;
+	struct {
+		int filefd;
+		char tmp_filename[RZYNC_MAX_NAME_LENGTH];
+		unsigned long long bytes_written;
+	} dst_sync_file;
 	int dstfd;	// the file to be written
 	struct event ev_read;
 	struct event ev_write;

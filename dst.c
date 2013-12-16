@@ -81,6 +81,7 @@ enum on_write_send_checksum_header_rt {
 	ON_WRITE_SEND_CHECKSUM_NEED_CLEANUP
 };
 
+/* send checksum header and all the checksums */
 int on_write_send_checksum(rzync_dst_t *ins)
 {
 	int n = write(ins->sockfd,ins->buf+ins->offset,ins->length-ins->offset);
@@ -172,6 +173,7 @@ void on_read(int sock,short event,void *arg)
 			/* no need to add read event now */
 			return;
 		case DST_CHKSM_HEADER_SENT:
+			/* undefined */
 			break;
 		case DST_CHKSM_ALL_SENT:
 			/* ready to receive delta file */
