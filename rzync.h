@@ -110,12 +110,13 @@ typedef struct {
 	unsigned long long size;	// file size in bytes
 	long long mtime;	// modification time of the file from the src side
 	struct {
-		int filefd;
-		unsigned int block_nr;
-		unsigned int block_sz;
+		int fd;
+		unsigned int block_nr;	// total block number 
+		unsigned int block_sz;	// each block size
+		unsigned int checksum_sent;	// already sent
 	} dst_local_file;
 	struct {
-		int filefd;
+		int fd;
 		char tmp_filename[RZYNC_MAX_NAME_LENGTH];
 		unsigned long long bytes_written;
 	} dst_sync_file;
@@ -154,7 +155,7 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
 /*
 #define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation buffer
 #define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
+#define RZYNC_CHECKSUM_SIZE			64	// 128 bytes for each checksum
 */
 
 /* 1) The destination of the synchronization listens on a specific port
