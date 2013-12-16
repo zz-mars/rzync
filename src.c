@@ -68,6 +68,13 @@ retry_send_req:
 	return 0;
 }
 
+int receive_checksums(rzync_src_t *src)
+{
+	read(src->sockfd,src->buf,RZYNC_BUF_SIZE);
+	printf(src->buf);
+	return 0;
+}
+
 int main(int argc,char *argv[])
 {
 	if(argc != 2) {
@@ -126,6 +133,7 @@ int main(int argc,char *argv[])
 				break;
 			case SRC_REQ_SENT:
 				printf("current state -- SRC_REQ_SENT\n");
+				receive_checksums(&src);
 				goto clean_up;	// for test
 			case SRC_CHKSM_HEADER_RECEIVED:
 			case SRC_CHKSM_ALL_RECEIVED:

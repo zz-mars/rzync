@@ -28,7 +28,7 @@
 		(type*)((unsigned char*)_fp - offzetof(member,type));	})
 
 #define RZYNC_BLOCK_SIZE			4096
-#define RZYNC_MD5_CHECK_SUM_BITS	32
+#define RZYNC_MD5_CHECK_SUM_BITS	33
 #define RZYNC_MAX_NAME_LENGTH		256
 
 /* ----------------- rolling hash ------------------ */
