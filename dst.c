@@ -15,7 +15,7 @@ void rzyncdst_ins_cleanup(rzync_dst_t *ins)
 	put_rzyncdst(free_list,ins);
 }
 
-enum on_read_rt {
+enum on_read_init_rt {
 	ON_READ_INIT_OK = 0,
 	ON_READ_INIT_ERR_OK,
 	ON_READ_INIT_ERR_NEED_CLEADUP
@@ -67,9 +67,83 @@ int on_read_init(rzync_dst_t *ins)
 	ins->mtime = mtime;
 	/* request parse ok */
 	printf("/* request parse ok, update to new state */\n");
+	printf("filename -- %s\n",ins->filename);
+	printf("size -- %llu\n",ins->size);
+	printf("mtime -- %llu\n",ins->mtime);
 	ins->state = DST_REQ_RECEIVED;
 
 	return ON_READ_INIT_OK;
+}
+
+enum on_write_send_checksum_header_rt {
+	ON_WRITE_SEND_CHECKSUM_OK = 0,
+	ON_WRITE_SEND_CHECKSUM_NOT_COMPLETE,
+	ON_WRITE_SEND_CHECKSUM_NEED_CLEANUP
+};
+
+int on_write_send_checksum(rzync_dst_t *ins)
+{
+	int n = write(ins->sockfd,ins->buf+ins->offset,ins->length-ins->offset);
+	if(n < 0) {
+	}
+}
+
+void on_write(int sock,short event,void *arg)
+{
+	rzync_dst_t *ins = (rzync_dst_t *)arg;
+	assert(sock == ins->sockfd);
+	switch(ins->state) {
+		case DST_INIT:
+			/* undefined */
+			break;
+		case DST_REQ_RECEIVED:
+			/* send the checksum header here */
+			break;
+		case DST_CHKSM_HEADER_SENT:
+			break;
+		case DST_CHKSM_ALL_SENT:
+			break;
+		case DST_DELTA_FILE_RECEIVED:
+		case DST_DONE:
+		default:
+			break;
+	}
+}
+
+enum on_read_prepare_checksum_header_rt {
+	ON_READ_PREPARE_CHECKSUM_HEADER_OK = 0,
+	ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP
+};
+/* 1) Prepare the checksum header in the buffer
+ * 2) set ev_write */
+int on_read_prepare_checksum_header(rzync_dst_t *ins)
+{
+	unsigned int block_sz = RZYNC_BLOCK_SIZE;
+	struct stat stt;
+	unsigned long long file_sz = 
+	(stat(ins->filename,&stt) == 0)?stt.st_size:0;
+	unsigned int block_nr = file_sz / block_sz;
+	memset(ins->buf,0,RZYNC_BUF_SIZE);
+	snprintf(ins->buf,
+			RZYNC_CHECKSUM_HEADER_SIZE,
+			"$%u\n$%u\n",
+			block_nr,block_sz);
+	ins->length = RZYNC_CHECKSUM_HEADER_SIZE;
+	ins->offset = 0;
+
+	/* checksum header now ok 
+	 * set the ev_write */
+	event_set(&ins->ev_write,ins->sockfd,EV_WRITE,on_write,(void*)ins);
+	if(event_base_set(ev_base,&ins->ev_write) != 0) {
+		fprintf(stderr,"event_base_set fail!\n");
+		return ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP;
+	}
+	// add write event
+	if(event_add(&ins->ev_write,NULL) != 0) {
+		fprintf(stderr,"event_add fail!\n");
+		return ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP;
+	}
+	return ON_READ_PREPARE_CHECKSUM_HEADER_OK;
 }
 
 void on_read(int sock,short event,void *arg)
@@ -80,14 +154,23 @@ void on_read(int sock,short event,void *arg)
 		case DST_INIT:
 			/* read RZYNC_FILE_INFO */
 			{
-				enum on_read_rt i = on_read_init(ins);
+				enum on_read_init_rt i = on_read_init(ins);
 				if(i == ON_READ_INIT_ERR_NEED_CLEADUP) {
 					goto clean_up;
 				}
 				goto re_add_read_event;
 			}
 		case DST_REQ_RECEIVED:
-			break;
+			/* prepare checksum header */
+			{
+				enum on_read_prepare_checksum_header_rt rt = 
+					on_read_prepare_checksum_header(ins);
+				if(rt == ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP) {
+					goto clean_up;
+				}
+			}
+			/* no need to add read event now */
+			return;
 		case DST_CHKSM_HEADER_SENT:
 			break;
 		case DST_CHKSM_ALL_SENT:
@@ -107,10 +190,6 @@ re_add_read_event:
 	return;
 clean_up:
 	rzyncdst_ins_cleanup(ins);
-}
-
-void on_write(int sock,short event,void *arg)
-{
 }
 
 void on_conenct(int sock,short event,void *arg)
