@@ -161,20 +161,29 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
  *	  $modification_time\n
  *   ---------------------------------
  * 3) Once the dst side receives this information, it checks file specified 
- *   in its local side, get the size. Send the block number and block size
- *   to the src side. The Header format:
+ *   by the request in its current working directory. Get the size then send 
+ *   the total block number and block size to the src as the checksum Header.
+ *   Format specification :
  *   ---------------------------------
  *   $block_nr\n
  *   $block_size\n
+ *   == post-script ==
+ *   If no file with name  "$filename" is found, the dst will just send the 
+ *   checksum header with block_nr = 0, so that the src side will send all 
+ *   its file data without delta-encoding.
  *   ---------------------------------
- *   it calculates the rolling hash and md5 of the block of local file,
- *   send the checksum information to src side in the following format:
+ * 4) After sending the checksum header, it calculates the rolling hash and
+ *   md5 of the block of local file, send the checksum information to src 
+ *   side in the following format:
  *   ---------------------------------
  *   $block_num\n
  *   $rolling_checksum.A\n
  *   $rolling_checksum.B\n
  *   $md5\n
  *   ---------------------------------
+ * 5) The src side receives these checksum infomation, keep them in a hash 
+ *   table in memory. The src side scans the file to be synced, do the delta
+ *   encoding.
  * */
 
 #endif
