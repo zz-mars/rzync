@@ -91,6 +91,7 @@ enum dst_state {
 };
 
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
+#define TMP_FILE_NAME_LEN	33
 /* ----------------- src side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
@@ -117,7 +118,7 @@ typedef struct {
 	} dst_local_file;
 	struct {
 		int fd;
-		char tmp_filename[RZYNC_MAX_NAME_LENGTH];
+		char tmp_filename[TMP_FILE_NAME_LEN];
 		unsigned long long bytes_written;
 	} dst_sync_file;
 	int dstfd;	// the file to be written
