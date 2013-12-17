@@ -9,7 +9,7 @@ adler32 : adler32_test.o
 
 .PHONY : cs
 cs : dst src
-src : src.o
+src : src.o checksum.o
 	gcc $? $(CC_FLAGS) $@ 
 dst : dst.o checksum.o md5.o
 	gcc $? $(CC_FLAGS) $@ $(LINK_LIBS)

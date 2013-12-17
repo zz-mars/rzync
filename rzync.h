@@ -28,7 +28,7 @@
 		(type*)((unsigned char*)_fp - offzetof(member,type));	})
 
 #define RZYNC_BLOCK_SIZE			4096
-#define RZYNC_MD5_CHECK_SUM_BITS	33
+#define RZYNC_MD5_CHECK_SUM_BITS	32
 #define RZYNC_MAX_NAME_LENGTH		256
 
 /* ----------------- rolling hash ------------------ */
@@ -51,7 +51,7 @@ rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int
 typedef struct {
 	unsigned int block_nr;
 	rolling_checksum_t rcksm;
-	char md5[RZYNC_MD5_CHECK_SUM_BITS];
+	char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 	struct list_head hash;	// for list in hash table
 } checksum_t;
 #define ptr_checksumof(lh)	containerof(lh,checksum_t,hash)
@@ -78,6 +78,7 @@ enum src_state {
 	SRC_REQ_SENT,	// request sent
 	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
 	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
+	SRC_CALCULATING_DELTA,		// calculate delta file
 	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
 	SRC_DONE		// all done
 };
@@ -105,6 +106,8 @@ typedef struct {
 		unsigned int block_nr;
 		unsigned int block_sz;
 	} checksum_header;
+	unsigned int checksum_recvd;
+	checksum_t *checksums;	// checksums
 	checksum_hashtable_t *hashtable;
 	int length;	// total length in the buffer
 	int offset;	// current offset in the buffer
