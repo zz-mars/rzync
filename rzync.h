@@ -58,6 +58,7 @@ typedef struct {
 
 /* checksum hash table */
 typedef struct {
+	unsigned int hash_bits;
 	unsigned int hash_nr;
 	struct list_head *slots;
 } checksum_hashtable_t;
@@ -99,7 +100,11 @@ typedef struct {
 	long long mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
 	int sockfd;	// socket to read and write
-	enum src_state state;	// current state
+	unsigned char state;	// current state
+	struct {
+		unsigned int block_nr;
+		unsigned int block_sz;
+	} checksum_header;
 	checksum_hashtable_t *hashtable;
 	int length;	// total length in the buffer
 	int offset;	// current offset in the buffer
@@ -125,7 +130,7 @@ typedef struct {
 	struct event ev_read;
 	struct event ev_write;
 	int sockfd;	// socket to read and write
-	enum dst_state state;	// current state
+	unsigned char state;	// current state
 	struct list_head flist;	// for the free list
 	int length;	// total length in the buffer
 	int offset;	// current offset in the buffer
