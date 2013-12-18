@@ -20,7 +20,7 @@ void rzyncdst_ins_cleanup(rzync_dst_t *ins)
 	put_rzyncdst(free_list,ins);
 }
 
-enum on_read_init_rt {
+enum {
 	ON_READ_INIT_COMPLETE = 0,
 	ON_READ_INIT_NOT_COMPLETE,
 	ON_READ_INIT_ERR_NEED_CLEADUP
@@ -86,6 +86,7 @@ int on_read_init(rzync_dst_t *ins)
 	printf("size -- %llu\n",ins->size);
 	printf("mtime -- %llu\n",ins->mtime);
 	/* update the state */
+	printf("update to new stage -- DST_REQ_RECEIVED\n");
 	ins->state = DST_REQ_RECEIVED;
 
 	return ON_READ_INIT_COMPLETE;
@@ -210,18 +211,27 @@ enum {
 int prepare_checksums(rzync_dst_t *ins)
 {
 	int checksums_left = ins->dst_local_file.block_nr - ins->dst_local_file.checksum_sent;
+	printf("checksums_left to be sent --------- %u\n",checksums_left);
 	if(checksums_left == 0) {
+		printf("prepare checksums -- All checksums have been sent..........\n");
 		/* If all checksums have been sent,
 		 * 1) set to new stage 
 		 * 2) prepare to receive delta-file 
 		 * 3) tell the caller to add ev_read */
 		if(prepare_receive_delta_file(ins) == PREPARE_RECEIVE_DELTA_FILE_ERR) {
+			printf("prepare_receive_delta_file failed, need clean up............\n");
 			return PREPARE_CHECKSUMS_ERR;
 		}
+		printf("prepare_receive_delta_file ok.....................\n");
+		printf("Set to new stage -- DST_CHKSM_ALL_SENT.........\n");
 		ins->state = DST_CHKSM_ALL_SENT;
 		return PREPARE_CHECKSUMS_NEED_SET_EV_READ;
+	} else if(checksums_left < 0) {
+		printf("unexpected error -- checksums left < 0 ............\n");
+		return PREPARE_CHECKSUMS_ERR;
 	}
 
+	printf("Total checksums that the buffer can holds -- %u\n",CHECKSUMS_NR_IN_TOTAL_BUF);
 	int how_many_to_send_this_time; 
 	if(CHECKSUMS_NR_IN_TOTAL_BUF < checksums_left) {
 		/* most of the cases */
@@ -231,27 +241,38 @@ int prepare_checksums(rzync_dst_t *ins)
 		how_many_to_send_this_time = checksums_left;
 	}
 
+	printf("so checksums which this time will sent ------------ %u\n",how_many_to_send_this_time);
+
 	memset(ins->buf,0,RZYNC_BUF_SIZE);
 	int i;
 	char *p = ins->buf;
 	/* calculate the checksums and pack them into the buffer */
 	for(i=0;i<how_many_to_send_this_time;i++) {
+		/* clear file buf */
 		char fbuf[RZYNC_BLOCK_SIZE];
 		memset(fbuf,0,RZYNC_BLOCK_SIZE);
+	//	/* lseek to the right position */
+	//	lseek(ins->dst_local_file.fd,chksm.block_nr*RZYNC_BLOCK_SIZE,SEEK_SET);
 		if(read(ins->dst_local_file.fd,fbuf,RZYNC_BLOCK_SIZE) != RZYNC_BLOCK_SIZE) {
 			perror("read file");
 			return PREPARE_CHECKSUMS_ERR;
 		}
+		/* clear chksm */
 		checksum_t chksm;
 		memset(&chksm,0,sizeof(chksm));
+		/* set block nr */
 		chksm.block_nr = ins->dst_local_file.checksum_sent + i;
+		/* calculate rolling chcksm */
 		chksm.rcksm = adler32_direct(fbuf,RZYNC_BLOCK_SIZE);
+		/* calculate md5 */
 		md5s_of_str(fbuf,RZYNC_BLOCK_SIZE,chksm.md5);
+		/* put into buffer */
 		snprintf(p,RZYNC_CHECKSUM_SIZE,"$%u\n$%u\n$%u\n$%s\n",
 				chksm.block_nr,
 				chksm.rcksm.rolling_AB.A,
 				chksm.rcksm.rolling_AB.B,
 				chksm.md5);
+	//	printf("%s",p);
 		p += RZYNC_CHECKSUM_SIZE;
 	}
 	ins->offset = 0;
@@ -267,9 +288,12 @@ void on_write(int sock,short event,void *arg)
 	assert(sock == ins->sockfd);
 	switch(ins->state) {
 		case DST_INIT:
+			printf("on_write --------------------- DST_INIT ---------------------\n");
+			printf("undefined state -- DST_INIT......................\n");
 			/* undefined */
 			break;
 		case DST_REQ_RECEIVED:
+			printf("on_write --------------------- DST_REQ_RECEIVED ---------------------\n");
 			{
 				/* For the three possible return value:
 				 * -----------------------------------------------
@@ -294,83 +318,101 @@ void on_write(int sock,short event,void *arg)
 					 * 2) lseek to start
 					 * 3) set checksum_sent = 0 */
 					assert(ins->state == DST_CHKSM_HEADER_SENT);
+					printf("on_write_send_checksum_header ok...................\n");
 					if(prepare_send_checksums(ins) == PREPARE_SEND_CHECKSUMS_NOT_OK) {
+						printf("prepare_send_checksums failed, need clean up................\n");
 						goto clean_up;
 					}
 					/* And then prepare the very first group of checksums */
 					int m = prepare_checksums(ins);
 					if( m == PREPARE_CHECKSUMS_NEED_SET_EV_WRITE) {
+						printf("checksums are now in the buffer, need set ev_write...........\n");
 						goto re_add_ev_write;
 					}else if(m == PREPARE_CHECKSUMS_NEED_SET_EV_READ) {
 						/* no checksums need to be sent */
+						printf("checksums are all sent, need set ev_read...........\n");
 						goto re_add_ev_read;
 					} else {
+						printf("prepare_checksums failed, need clean up...........\n");
 						goto clean_up;
 					}
 
 				}else if(i == ON_WRITE_SEND_CHECKSUM_HEADER_NEED_CLEANUP) {
+					printf("on_write_send_checksum_header failed, need clean up...................\n");
 					/* goto cleanup if needed... */
 					goto clean_up;
 				} else {
+					printf("on_write_send_checksum_header not complete for some reason, need set ev_write...................\n");
 					goto re_add_ev_write;
 				}
-				/* set ev_write for 
-				 * 1) the imcompletely sent checksum header 
-				 * 2) checksums which already in the buffer */
 			}
 			break;
 		case DST_CHKSM_HEADER_SENT:
+			printf("on_write --------------------- DST_CHKSM_HEADER_SENT ---------------------\n");
 			/* send the checksums now in the buf
 			 * prepare other checksums if needed */
 			{
 				int i = on_write_send_checksums(ins);
 				if(i == ON_WRITE_SEND_CHECKSUMS_NOT_COMPLETE) {
+					printf("on_write_send_checksums not complete, need set ev_write...................\n");
 					goto re_add_ev_write;
 				} else if(i == ON_WRITE_SEND_CHECKSUMS_NEED_CLEANUP) {
+					printf("on_write_send_checksums failed, need clean up...................\n");
 					goto clean_up;
 				}
+				printf("on_write_send_checksums ok, prepare for more checksums...................\n");
 
 				/* checksums in the buffer all sent 
 				 * new checksums can be put into buf and sent */
 				i = prepare_checksums(ins);
 				if(i == PREPARE_CHECKSUMS_NEED_SET_EV_WRITE) {
 					/* There're still some checksums to be sent */
+					printf("checksums are now in the buffer, need set ev_write...........\n");
 					goto re_add_ev_write;
 				} else if(i == PREPARE_CHECKSUMS_NEED_SET_EV_READ) {
 					/* All checksums have been sent 
 					 * Get ready to receive the delta-file */
+					printf("checksums are all sent, need set ev_read...........\n");
 					goto re_add_ev_read;
 				} else {
+					printf("prepare_checksums failed, need clean up...........\n");
 					goto clean_up;
 				}
 			}
 			break;
 		case DST_CHKSM_ALL_SENT:
 			/* undefined */
+			printf("on_write --------------------- DST_CHKSM_ALL_SENT ---------------------\n");
+			printf("DST_CHKSM_ALL_SENT --------------- undefined............\n");
 			break;
 		case DST_DELTA_FILE_RECEIVED:
+			printf("on_write --------------------- DST_DELTA_FILE_RECEIVED ---------------------\n");
+			break;
 		case DST_DONE:
 		default:
 			break;
 	}
 	return;
 re_add_ev_read:
+	printf("on_write -------------------- re_add ev_read -------------------\n");
 	if(event_add(&ins->ev_read,NULL) != 0) {
 		fprintf(stderr,"ev_read add fail!\n");
 		goto clean_up;
 	}
 	return;
 re_add_ev_write:
+	printf("on_write -------------------- re_add ev_write -------------------\n");
 	if(event_add(&ins->ev_write,NULL) != 0) {
 		fprintf(stderr,"ev_write add fail!\n");
 		goto clean_up;
 	}
 	return;
 clean_up:
+	printf("cleanup from on_write...........\n");
 	rzyncdst_ins_cleanup(ins);
 }
 
-enum on_read_prepare_checksum_header_rt {
+enum {
 	ON_READ_PREPARE_CHECKSUM_HEADER_OK = 0,
 	ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP
 };
@@ -415,7 +457,10 @@ enum {
 int on_read_receive_delta_file(rzync_dst_t *ins)
 {
 	// for test
-	read(ins->sockfd,ins->buf,RZYNC_BUF_SIZE);
+	int n = read(ins->sockfd,ins->buf,RZYNC_BUF_SIZE);
+	if(n == 0) {
+		return ON_READ_RECV_DELTA_FILE_NEED_CLEANUP;
+	}
 	printf("on_read_receive_delta_file : %s\n",ins->buf);
 	return ON_READ_RECV_DELTA_FILE_DONE;
 }
@@ -433,6 +478,7 @@ void on_read(int sock,short event,void *arg)
 	assert(sock == ins->sockfd);
 	switch(ins->state) {
 		case DST_INIT:
+			printf("on_read --------------------- DST_REQ_RECEIVED ---------------------\n");
 			/* read RZYNC_FILE_INFO */
 			{
 				int i = on_read_init(ins);
@@ -441,47 +487,65 @@ void on_read(int sock,short event,void *arg)
 					 * PREPARE THE CHECKSUM HEADER AND
 					 * SET EV_WRITE */
 					assert(ins->state == DST_REQ_RECEIVED);
-					i = on_read_prepare_checksum_header(ins);
-					if(i == ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP) {
+					printf("read sync header successfully, now prepare checksum header...\n");
+					int j = on_read_prepare_checksum_header(ins);
+					if(j == ON_READ_PREPARE_CHECKSUM_HEADER_NEED_CLEANUP) {
+						printf("prepare checksum header failed, need clean up..............\n");
 						goto clean_up;
 					}
+					printf("prepare checksum header ok, ev_write was set successfully..............\n");
 					return;
 				}else if(i == ON_READ_INIT_NOT_COMPLETE) {
 					/* go on to complete reading the request */
+					printf("read sync header not complete, read it in next loop...\n");
 					goto re_add_ev_read;
 				} else if(i == ON_READ_INIT_ERR_NEED_CLEADUP) {
+					printf("read sync header failed, socket error or parse error, need clean up..........\n");
 					goto clean_up;
 				}
 			}
+			break;
 		case DST_REQ_RECEIVED:
+			printf("on_read --------------------- DST_REQ_RECEIVED ---------------------\n");
+			printf("DST_REQ_RECEIVED --- undefined state, please check it out..............\n");
 			/* undefined */
 			break;
 		case DST_CHKSM_HEADER_SENT:
+			printf("on_read --------------------- DST_CHKSM_HEADER_SENT ---------------------\n");
+			printf("DST_CHKSM_HEADER_SENT --- undefined state, please check it out..............\n");
 			/* undefined */
 			break;
 		case DST_CHKSM_ALL_SENT:
+		//	printf("on_read --------------------- DST_CHKSM_ALL_SENT ---------------------\n");
+		//	return;	// for test
 			/* ready to receive delta file */
 			{
 				int i = on_read_receive_delta_file(ins);
-				if(i == ON_READ_RECV_DELTA_FILE_DONE) {
+				if(i == ON_READ_RECV_DELTA_FILE_NEED_CLEANUP) {
 					goto clean_up;
 				}
 				// parse_delta_file(ins);
 			}
 			break;
 		case DST_DELTA_FILE_RECEIVED:
+			printf("on_read --------------------- DST_DELTA_FILE_RECEIVED ---------------------\n");
+			break;
 		case DST_DONE:
+			printf("on_read --------------------- DST_DONE ---------------------\n");
+			break;
 		default:
 			break;
 	}
 
 re_add_ev_read:
+	printf("on_read -------------------------------- re-add ev_read...............\n");
 	if(event_add(&ins->ev_read,NULL) != 0) {
 		fprintf(stderr,"event_add fail!\n");
 		goto clean_up;
 	}
 	return;
 clean_up:
+	printf("cleanup from on_read.................\n");
 	rzyncdst_ins_cleanup(ins);
 }
 
@@ -532,6 +596,7 @@ void on_conenct(int sock,short event,void *arg)
 	}
 	return;
 clean_up:
+	printf("cleanup from on_conenct..................\n");
 	rzyncdst_ins_cleanup(ins);
 }
 

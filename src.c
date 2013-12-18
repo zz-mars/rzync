@@ -38,6 +38,7 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 
 void src_cleanup(rzync_src_t *src)
 {
+	printf("src_cleanup called................\n");
 	close(src->filefd);
 	close(src->sockfd);
 	checksum_hashtable_destory(src->hashtable);
@@ -261,6 +262,7 @@ int receive_checksums(rzync_src_t *src)
 	unsigned int chksm_left = src->checksum_header.block_nr - src->checksum_recvd;
 	/* how many checksums to recv in this loop */
 	unsigned int chksm_nr = CHKSMS_EACH_BUF_SRC<chksm_left?CHKSMS_EACH_BUF_SRC:chksm_left;
+	printf("checksums left -- %u CHKSMS_EACH_BUF_SRC -- %u -- chksm_nr -- %u\n",chksm_left,CHKSMS_EACH_BUF_SRC,chksm_nr);
 	unsigned int bytes_nr = chksm_nr * RZYNC_CHECKSUM_SIZE;
 	src->length = 0;
 	memset(src->buf,0,RZYNC_BUF_SIZE);
@@ -280,17 +282,26 @@ int receive_checksums(rzync_src_t *src)
 		}
 		src->length += n;
 	}
-	printf("checksums -- %s\n",src->buf);
+//	printf("checksums -- %s\n",src->buf);
 	/* parse these checksums */
 	int i;
 	char *p = src->buf;
 	for(i=0;i<chksm_nr;i++) {
-		checksum_t *chksm = &src->checksums[src->checksum_recvd+i];
+	//	printf("%s",p);
+		unsigned int block_nr = src->checksum_recvd + i;
+		/* get a checksum_t for new comer */
+		checksum_t *chksm = &src->checksums[block_nr];
+		/* clear it */
+		memset(chksm,0,sizeof(checksum_t));
+		/* parse checksums */
 		if(parse_checksum(p,chksm) != PARSE_CHECKSUM_OK) {
+			printf("parse checksum fail...................\n");
 			return RECEIVE_CHCKSMS_ERR;
 		}
+		assert(chksm->block_nr == block_nr);
 		/* insert chksm to hash table */
 		hash_insert(src->hashtable,chksm);
+		p += RZYNC_CHECKSUM_SIZE;
 	}
 	/* update the checksums received */
 	src->checksum_recvd += chksm_nr;
@@ -397,10 +408,15 @@ int main(int argc,char *argv[])
 				break;
 			case SRC_CHKSM_HEADER_RECEIVED:
 				/* recv checksums */
-				receive_checksums(&src);
+				if(receive_checksums(&src) == RECEIVE_CHCKSMS_ERR) {
+					printf("receive checksums fail.....................\n");
+					goto clean_up;
+				}
+				break;
 			case SRC_CHKSM_ALL_RECEIVED:
 				/* When all checksums recved,
 				 * prepare for delta file */
+				printf("All checksums have been received successfully...............\n");
 //				prepare_send_delta(&src);
 				goto clean_up;
 			case SRC_CALCULATING_DELTA:
