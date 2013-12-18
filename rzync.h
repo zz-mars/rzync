@@ -68,31 +68,6 @@ typedef struct {
 checksum_hashtable_t *checksum_hashtable_init(unsigned int nr);
 void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
-/* ----------------- PROTOCOL SPECIFICATION ------------------ */
-#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation 
-#define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
-
-enum src_state {
-	SRC_INIT = 0,	// ready to send sync request
-	SRC_REQ_SENT,	// request sent
-	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
-	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
-	SRC_CALCULATE_DELTA,		// calculate delta file
-	SRC_SEND_DELTA,				// send delta
-	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
-	SRC_DONE		// all done
-};
-
-enum dst_state {
-	DST_INIT = 0,	// ready to receive sync request
-	DST_REQ_RECEIVED,
-	DST_CHKSM_HEADER_SENT,
-	DST_CHKSM_ALL_SENT,
-	DST_DELTA_FILE_RECEIVED,
-	DST_DONE
-};
-
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
 #define RZYNC_DETLTA_BUF_SIZE	(1<<14)	// 16KB for src file buffer
 #define TMP_FILE_NAME_LEN	33
@@ -175,11 +150,30 @@ rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl);
 void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
 
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
-/*
-#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation buffer
+#define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation 
 #define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_SIZE			64	// 128 bytes for each checksum
-*/
+#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
+#define RZYNC_DELTA_HEDER_SIZE		16
+
+enum src_state {
+	SRC_INIT = 0,	// ready to send sync request
+	SRC_REQ_SENT,	// request sent
+	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
+	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
+	SRC_CALCULATE_DELTA,		// calculate delta file
+	SRC_SEND_DELTA,				// send delta
+	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
+	SRC_DONE		// all done
+};
+
+enum dst_state {
+	DST_INIT = 0,	// ready to receive sync request
+	DST_REQ_RECEIVED,
+	DST_CHKSM_HEADER_SENT,
+	DST_CHKSM_ALL_SENT,
+	DST_DELTA_FILE_RECEIVED,
+	DST_DONE
+};
 
 /* 1) The destination of the synchronization listens on a specific port
  * 2) The source side of the synchronization sends the information of 

@@ -424,8 +424,17 @@ int main(int argc,char *argv[])
 				src->state = SRC_CALCULATE_DELTA;
 				break;
 			case SRC_CALCULATE_DELTA:
+				/* process the file in the buffer 
+				 * calculate the delta data
+				 * pack the result to the buffer */
+				calculate_delta(&src);
 				break;
 			case SRC_SEND_DELTA:
+				/* send the data in the buf
+				 * if all bytes have been processed, set to SRC_DELTA_FILE_DONE
+				 * else if still bytes to be processed,
+				 * set backward to SRC_CALCULATE_DELTA */
+				send_delta(&src);
 				break;
 			case SRC_DELTA_FILE_DONE:
 			case SRC_DONE:
@@ -445,5 +454,7 @@ void prepare_send_delta(rzync_src_t *src)
 	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
 	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
 	memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+	/* set to start */
+	lseek(src->filefd,0,SEEK_SET);
 }
 
