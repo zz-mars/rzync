@@ -78,7 +78,8 @@ enum src_state {
 	SRC_REQ_SENT,	// request sent
 	SRC_CHKSM_HEADER_RECEIVED,	// construct hash table,ready to receive checksum
 	SRC_CHKSM_ALL_RECEIVED,		// all checksums inserted into hash table
-	SRC_CALCULATING_DELTA,		// calculate delta file
+	SRC_CALCULATE_DELTA,		// calculate delta file
+	SRC_SEND_DELTA,				// send delta
 	SRC_DELTA_FILE_DONE,		// search for duplicated block, build the delta file
 	SRC_DONE		// all done
 };
@@ -125,6 +126,7 @@ typedef struct {
 	int offset;	// current offset in the buffer
 	char buf[RZYNC_BUF_SIZE];
 } rzync_src_t;
+
 /* ----------------- dest side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
@@ -215,7 +217,22 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
  * 5) The src side receives these checksum infomation, keep them in a hash 
  *   table in memory. The src side scans the file to be synced, do the delta
  *   encoding.
+ *
+ * 6) Each delta packet consists of a header and a body,
+ *	  Delta header format :
+ *	  $flag$nr\nBody
+ *	  if flag == 'D' :
+ *		This is a duplicate block of the local block #nr
+ *	  else if flag == 'N' :
+ *		This is not a duplicated block, the following #nr bytes is the content
  * */
+
+#define DELTA_DUP	'D'		// duplicate flag
+#define DELTA_NDUP	'N'		// non-deuplicate flag
+typedef struct delta_header_t {
+	unsigned char flag;	// duplicate flag
+	unsigned int nr;	// block_nr or content size
+} delta_header_t;
 
 #endif
 

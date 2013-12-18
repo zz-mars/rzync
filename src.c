@@ -373,8 +373,10 @@ int main(int argc,char *argv[])
 					int i = send_sync_request(&src);
 					if(i == SEND_SYNC_REQ_OK) {
 						/* when sync req sent ok
-						 * prepare to receive checksum header */
+						 * prepare to receive checksum header 
+						 * simply by clearing the buf */
 						prepare_receive_checksum_header(&src);
+						/* update to new stage */
 						src.state = SRC_REQ_SENT;
 					}else if(i == SEND_SYNC_REQ_ERR) {
 						goto clean_up;
@@ -387,15 +389,16 @@ int main(int argc,char *argv[])
 				{
 					int i = receive_checksum_header(&src);
 					if(i == RECV_CHCKSM_H_OK) {
+						/* prepare to receive the checksums */
 						int j = prepare_receive_checksums(&src);
 						if(j == PREPARE_RECV_CHCKSMS_OK) {
-							/* ok, set to next stage */
+							/* ok, set to next stage 
+							 * ready to receive all the checksums */
 							src.state = SRC_CHKSM_HEADER_RECEIVED;
 						} else if(j == PREPARE_RECV_CHCKSMS_NO_CHEKSMS) {
-							/* no checksums */
+							/* When no checksums need to be received
+							 * directly go to stage SRC_CHKSM_ALL_RECEIVED */
 							src.state = SRC_CHKSM_ALL_RECEIVED;
-						//	prepare_send_delta(&src);
-						//	goto clean_up;	// for test
 						}else {
 							/* error */
 							goto clean_up;
@@ -414,12 +417,16 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_CHKSM_ALL_RECEIVED:
-				/* When all checksums recved,
-				 * prepare for delta file */
 				printf("All checksums have been received successfully...............\n");
-//				prepare_send_delta(&src);
-				goto clean_up;
-			case SRC_CALCULATING_DELTA:
+				/* When all checksums recved, prepare for delta file */
+				prepare_send_delta(&src);
+				/* set to next stage */
+				src->state = SRC_CALCULATE_DELTA;
+				break;
+			case SRC_CALCULATE_DELTA:
+				break;
+			case SRC_SEND_DELTA:
+				break;
 			case SRC_DELTA_FILE_DONE:
 			case SRC_DONE:
 			default:
@@ -429,5 +436,14 @@ int main(int argc,char *argv[])
 clean_up:
 	src_cleanup(&src);
 	return 0;
+}
+
+/* simply initialize the delta struct in the rzync_src_t */
+void prepare_send_delta(rzync_src_t *src)
+{
+	src->src_delta.offset = 0;
+	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
+	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
+	memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
 }
 
