@@ -93,6 +93,7 @@ enum dst_state {
 };
 
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
+#define RZYNC_DETLTA_BUF_SIZE	(1<<14)	// 16KB for src file buffer
 #define TMP_FILE_NAME_LEN	33
 /* ----------------- src side struct ------------------ */
 typedef struct {
@@ -113,7 +114,7 @@ typedef struct {
 		struct {
 			unsigned int offset;	// current offset in buf
 			unsigned int length;	// total length in buf
-			char buf[RZYNC_DETLTA_BUF];
+			char buf[RZYNC_DETLTA_BUF_SIZE];
 		} buf;
 	} src_delta;
 	unsigned int checksum_recvd;
