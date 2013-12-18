@@ -106,7 +106,18 @@ typedef struct {
 		unsigned int block_nr;
 		unsigned int block_sz;
 	} checksum_header;
+	/* src delta */
+	struct {
+		unsigned long long offset;	// bytes already processed
+		checksum_t chksm;			// checksum
+		struct {
+			unsigned int offset;	// current offset in buf
+			unsigned int length;	// total length in buf
+			char buf[RZYNC_DETLTA_BUF];
+		} buf;
+	} src_delta;
 	unsigned int checksum_recvd;
+	/* for building checksum hash table */
 	checksum_t *checksums;	// checksums
 	checksum_hashtable_t *hashtable;
 	int length;	// total length in the buffer
@@ -127,7 +138,7 @@ typedef struct {
 	struct {
 		int fd;
 		char tmp_filename[TMP_FILE_NAME_LEN];
-		unsigned long long bytes_written;
+		unsigned long long bytes_recvd;
 	} dst_sync_file;
 	int dstfd;	// the file to be written
 	struct event ev_read;
