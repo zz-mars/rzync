@@ -102,7 +102,6 @@ enum {
 int parse_checksum_header(rzync_src_t *src)
 {
 	char *p = src->buf;
-	printf("checksum header -- %s\n",p);
 	src->checksum_header.block_nr = str2i(&p,'$','\n');
 	if(src->checksum_header.block_nr == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_HEADER_ERR;
@@ -111,7 +110,7 @@ int parse_checksum_header(rzync_src_t *src)
 	if(src->checksum_header.block_sz == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_HEADER_ERR;
 	}
-	printf("block_nr %u\nblock_sz %u\n",
+	printf("checksumheader -- block_nr %u -- block_sz %u\n",
 			src->checksum_header.block_nr,
 			src->checksum_header.block_sz);
 	return PARSE_CHECKSUM_HEADER_OK;
@@ -153,7 +152,8 @@ int prepare_receive_checksums(rzync_src_t *src)
 	if(!src->hashtable) {
 		return PREPARE_RECV_CHCKSMS_ERR;
 	}
-	src->checksums = (checksum_t*)malloc(sizeof(checksum_t)*src->checksum_header.block_nr);
+	src->checksums = 
+		(checksum_t*)malloc(sizeof(checksum_t)*src->checksum_header.block_nr);
 	if(!src->checksums) {
 		perror("malloc for checksums");
 		checksum_hashtable_destory(src->hashtable);
@@ -240,13 +240,13 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 			lh=lh->next)
 /* only compare the rolling hash
  * checking the md5, if rolling hash matches */
-checksum_t *hash_search(checksum_hashtable_t *ht,checksum_t *chksm)
+checksum_t *hash_search(checksum_hashtable_t *ht,rolling_checksum_t *rcksm)
 {
-	unsigned int hash_pos = very_simple_hash(chksm->rcksm.rolling_checksum,ht->hash_nr);
+	unsigned int hash_pos = very_simple_hash(rcksm.rolling_checksum,ht->hash_nr);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
-		if(cksm->rcksm.rolling_checksum == chksm->rcksm.rolling_checksum) {
+		if(cksm->rcksm.rolling_checksum == rcksm->rolling_checksum) {
 			return cksm;
 		}
 	}
@@ -357,10 +357,14 @@ enum {
 };
 int prepare_delta(rzync_src_t *src)
 {
+	/* block size */
+	unsigned int block_sz = src->checksum_header.block_sz;
+	unsigned int block_nr = src->checksum_header.block_nr;
+	char *file_buf = src->src_delta.buf.buf;
 	unsigned int in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
-	assert(in_buf_not_processed > 0);
-	if(in_buf_not_processed >= src->checksum_header.block_sz) {
+	assert(in_buf_not_processed >= 0);
+	if(in_buf_not_processed >= block_sz) {
 		/* enough data to process,
 		 * directly go to calculate delta */
 		goto calculate_delta;
@@ -376,16 +380,16 @@ int prepare_delta(rzync_src_t *src)
 		}
 		/* copy to tmp buffer */
 		memcpy(tmp_buf,
-				src->src_delta.buf.buf+src->src_delta.buf.offset,
+				file_buf+src->src_delta.buf.offset,
 				in_buf_not_processed);
-		/* clear buffer */
-		memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+		/* clear file buffer */
+		memset(file_buf,0,RZYNC_DETLTA_BUF_SIZE);
 		/* copy back */
-		memcpy(src->src_delta.buf.buf,tmp_buf,in_buf_not_processed);
+		memcpy(file_buf,tmp_buf,in_buf_not_processed);
 		free(tmp_buf);
 	}else if(in_buf_not_processed == 0){
 		/* simply clear the buffer */
-		memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+		memset(file_buf,0,RZYNC_DETLTA_BUF_SIZE);
 	}
 	/* re-set offset and length */
 	src->src_delta.buf.length = in_buf_not_processed;
@@ -407,7 +411,7 @@ int prepare_delta(rzync_src_t *src)
 	/* make sure */
 	while(already_read != to_read) {
 		int n = read(src->filefd,
-				src->src_delta.buf.buf+in_buf_not_processed+already_read,
+				file_buf+in_buf_not_processed+already_read,
 				to_read-already_read);
 		if(n < 0) {
 			if(errno == EINTR) {
@@ -431,17 +435,71 @@ calculate_delta:
 	assert(in_buf_not_processed > 0);
 	/* clear socket buf */
 	memset(src->buf,0,RZYNC_BUF_SIZE);
-	if(in_buf_not_processed < src->checksum_header.block_nr) {
+	src->length = src->offset = 0;
+	if(in_buf_not_processed < block_sz) {
 		/* the last block to process, no need to calculate */
 		snprintf(src->buf,RZYNC_BUF_SIZE,"$%c$%u\n",DELTA_NDUP,in_buf_not_processed);
 		int delta_header_len = strlen(src->buf);
 		memcpy(src->buf+delta_header_len,
-				src->src_delta.buf.buf+src->src_delta.buf.offset,
+				file_buf+src->src_delta.buf.offset,
 				in_buf_not_processed);
 		src->length = delta_header_len + in_buf_not_processed;
 		return PREPARE_DELTA_OK;
 	}
 	/* the real challenge comes here... */
+	/* the block before the matched one */
+	unsigned int blk_b4_match_start = src->src_delta.buf.offset;
+	unsigned int blk_b4_match_end = blk_b4_match_start;
+	/* the block which is checked for match */
+	unsigned int checking_match_start = blk_b4_match_end;
+	unsigned int checking_match_end = checking_match_start + block_sz;
+	/* the first block */
+	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
+	/* When usabale buffer in socket buf is more than RZYNC_DELTA_HEDER_SIZE
+	 * TRY TO PACK AS MUCH DATA AS POSSIBLE IN THE SOCKET BUFFER */
+	while(RZYNC_BUF_SIZE-src->length >= RZYNC_DELTA_HEDER_SIZE) {
+		int match_found = 0;
+		/* try to find the first matched block in the file buffer */
+		checksum_t *chksm = hash_search(src->hashtable,&rcksm);
+		if(!chksm) {
+			/* rolling checksum not match */
+			goto one_byte_forward;
+		}else {
+			/* rolling checksum matched, compare the md5 */
+			char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
+			memset(md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
+			md5s_of_str(file_buf+checking_match_start,block_sz,md5);
+			if(memcmp(md5,chksm->md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
+				/* matched block found */
+				match_found = 1;
+				goto pack_delta;
+			} else {
+				goto one_byte_forward;
+			}
+		}
+one_byte_forward:
+		/* is there still some bytes for us to move forward? */
+		if(checking_match_end == src->src_delta.buf.length) {
+			/* cannot move forward */
+			goto pack_delta;
+		}
+		assert(checking_match_end < src->src_delta.buf.length);
+		char old_ch = file_buf[checking_match_start++];
+		char new_ch = file_buf[++checking_match_end];
+		blk_b4_match_end = checking_match_start;
+		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
+		continue;
+pack_delta:
+		/* put delta into socket buffer
+		 * ESTIMATE THE BUFFER CAPACITY 
+		 * BEFORE REALLY PUT THE DELTA INTO IT
+		 * 1) if enough room in the buffer, 
+		 *    put it and update the buffer state
+		 *    and start a new loop
+		 * 2) do not update the buffer state 
+		 *    if no enough room, then terminate 
+		 *    the while loop */
+	}
 }
 
 

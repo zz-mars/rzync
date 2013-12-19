@@ -93,64 +93,30 @@ int on_read_init(rzync_dst_t *ins)
 }
 
 enum {
-	ON_WRITE_SEND_CHECKSUM_HEADER_OK = 0,
-	ON_WRITE_SEND_CHECKSUM_HEADER_NOT_COMPLETE,
-	ON_WRITE_SEND_CHECKSUM_HEADER_NEED_CLEANUP
+	SEND_DST_BUF_OK = 0,
+	SEND_DST_BUF_NOT_COMPLETE,
+	SEND_DST_BUF_ERR
 };
-/* send checksum header
- * IF SEND OK, UPDATE THE STATE TO DST_CHKSM_HEADER_SENT */
-int on_write_send_checksum_header(rzync_dst_t *ins)
+/* send_dst_buf : send the data in dst buf via Socket */
+int send_dst_buf(rzync_dst_t *ins)
 {
-	/* checksum header now in the buffer,
-	 * send header first */
 	int n = write(ins->sockfd,ins->buf+ins->offset,ins->length-ins->offset);
 	if (n < 0) {
 		if(!(errno == EWOULDBLOCK || errno == EAGAIN)) {
-			/* handle error */
-			return ON_WRITE_SEND_CHECKSUM_HEADER_NEED_CLEANUP;
+			/* unacceptable error */
+			return SEND_DST_BUF_ERR;
 		}
-		return ON_WRITE_SEND_CHECKSUM_HEADER_NOT_COMPLETE; 
+		return SEND_DST_BUF_NOT_COMPLETE; 
 	} else if(n == 0) {
-		/* connection closed by peer,
-		 * need cleanup */
-		return ON_WRITE_SEND_CHECKSUM_HEADER_NEED_CLEANUP;
+		/* connection closed by peer */
+		return SEND_DST_BUF_ERR;
 	}
 	ins->offset += n;
-	if(ins->offset < ins->length) {
-		return ON_WRITE_SEND_CHECKSUM_HEADER_NOT_COMPLETE;
+	if(ins->offset == ins->length) {
+		return SEND_DST_BUF_OK;
 	}
-	/* set to new stage 
-	 * ready to send the checksums */
-	ins->state = DST_CHKSM_HEADER_SENT;
-	return ON_WRITE_SEND_CHECKSUM_HEADER_OK;
-}
-
-enum {
-	ON_WRITE_SEND_CHECKSUMS_OK = 0,
-	ON_WRITE_SEND_CHECKSUMS_NOT_COMPLETE,
-	ON_WRITE_SEND_CHECKSUMS_NEED_CLEANUP
-};
-
-/* on_write_send_checksums
- * Just send the checksums in the buffer
- * DO NOT CHANGE THE STATE IN THIS ROUTINE */
-int on_write_send_checksums(rzync_dst_t *ins)
-{
-	/* send the checksums in the buffer */
-	int n = write(ins->sockfd,ins->buf+ins->offset,ins->length-ins->offset);
-	if(n < 0) {
-		if(!(errno == EWOULDBLOCK || errno == EAGAIN)) {
-			return ON_WRITE_SEND_CHECKSUMS_NEED_CLEANUP;
-		}
-		return ON_WRITE_SEND_CHECKSUMS_NOT_COMPLETE;
-	} else if(n == 0) {
-		return ON_WRITE_SEND_CHECKSUMS_NEED_CLEANUP;
-	}
-	ins->offset += n;
-	if(ins->offset < ins->length) {
-		return ON_WRITE_SEND_CHECKSUMS_NOT_COMPLETE;
-	}
-	return ON_WRITE_SEND_CHECKSUMS_OK;
+	assert(ins->offset < ins->length);
+	return SEND_DST_BUF_NOT_COMPLETE;
 }
 
 enum {
@@ -310,15 +276,14 @@ void on_write(int sock,short event,void *arg)
 				 *  some error happened, need some cleanup..
 				 */
 				/* checksum header now in the buffer */
-				int i = on_write_send_checksum_header(ins);
-				if(i == ON_WRITE_SEND_CHECKSUM_HEADER_OK) {
+				int i = send_dst_buf(ins);
+				if(i == SEND_DST_BUF_OK) {
 					/* when checksum header sent ok, prepare to send checksums
 					 * Basically it does the following :
 					 * 1) open the dst_local_file 
 					 * 2) lseek to start
 					 * 3) set checksum_sent = 0 */
-					assert(ins->state == DST_CHKSM_HEADER_SENT);
-					printf("on_write_send_checksum_header ok...................\n");
+					ins->state = DST_CHKSM_HEADER_SENT;
 					if(prepare_send_checksums(ins) == PREPARE_SEND_CHECKSUMS_NOT_OK) {
 						printf("prepare_send_checksums failed, need clean up................\n");
 						goto clean_up;
@@ -337,12 +302,10 @@ void on_write(int sock,short event,void *arg)
 						goto clean_up;
 					}
 
-				}else if(i == ON_WRITE_SEND_CHECKSUM_HEADER_NEED_CLEANUP) {
-					printf("on_write_send_checksum_header failed, need clean up...................\n");
+				}else if(i == SEND_DST_BUF_ERR) {
 					/* goto cleanup if needed... */
 					goto clean_up;
 				} else {
-					printf("on_write_send_checksum_header not complete for some reason, need set ev_write...................\n");
 					goto re_add_ev_write;
 				}
 			}
@@ -352,16 +315,14 @@ void on_write(int sock,short event,void *arg)
 			/* send the checksums now in the buf
 			 * prepare other checksums if needed */
 			{
-				int i = on_write_send_checksums(ins);
-				if(i == ON_WRITE_SEND_CHECKSUMS_NOT_COMPLETE) {
-					printf("on_write_send_checksums not complete, need set ev_write...................\n");
+				int i = send_dst_buf(ins);
+				if(i == SEND_DST_BUF_NOT_COMPLETE) {
+					/* send buf not complete */
 					goto re_add_ev_write;
-				} else if(i == ON_WRITE_SEND_CHECKSUMS_NEED_CLEANUP) {
-					printf("on_write_send_checksums failed, need clean up...................\n");
+				} else if(i == SEND_DST_BUF_ERR) {
+					/* error */
 					goto clean_up;
 				}
-				printf("on_write_send_checksums ok, prepare for more checksums...................\n");
-
 				/* checksums in the buffer all sent 
 				 * new checksums can be put into buf and sent */
 				i = prepare_checksums(ins);
