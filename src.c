@@ -240,13 +240,13 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 			lh=lh->next)
 /* only compare the rolling hash
  * checking the md5, if rolling hash matches */
-checksum_t *hash_search(checksum_hashtable_t *ht,rolling_checksum_t *rcksm)
+checksum_t *hash_search(checksum_hashtable_t *ht,rolling_checksum_t rcksm)
 {
 	unsigned int hash_pos = very_simple_hash(rcksm.rolling_checksum,ht->hash_nr);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
-		if(cksm->rcksm.rolling_checksum == rcksm->rolling_checksum) {
+		if(cksm->rcksm.rolling_checksum == rcksm.rolling_checksum) {
 			return cksm;
 		}
 	}
@@ -438,12 +438,14 @@ calculate_delta:
 	src->length = src->offset = 0;
 	if(in_buf_not_processed < block_sz) {
 		/* the last block to process, no need to calculate */
-		snprintf(src->buf,RZYNC_BUF_SIZE,"$%c$%u\n",DELTA_NDUP,in_buf_not_processed);
-		int delta_header_len = strlen(src->buf);
-		memcpy(src->buf+delta_header_len,
+		int delta_header_len =	snprintf(src->buf+src->length,
+				RZYNC_BUF_SIZE-src->length,
+				"$%c$%u\n",
+				DELTA_NDUP,in_buf_not_processed);
+		memcpy(src->buf+src->length+delta_header_len,
 				file_buf+src->src_delta.buf.offset,
 				in_buf_not_processed);
-		src->length = delta_header_len + in_buf_not_processed;
+		src->length += (delta_header_len + in_buf_not_processed);
 		return PREPARE_DELTA_OK;
 	}
 	/* the real challenge comes here... */
@@ -453,14 +455,13 @@ calculate_delta:
 	/* the block which is checked for match */
 	unsigned int checking_match_start = blk_b4_match_end;
 	unsigned int checking_match_end = checking_match_start + block_sz;
-	/* the first block */
+	/* calculate the rolling checksum of the first block */
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
-	/* When usabale buffer in socket buf is more than RZYNC_DELTA_HEDER_SIZE
-	 * TRY TO PACK AS MUCH DATA AS POSSIBLE IN THE SOCKET BUFFER */
-	while(RZYNC_BUF_SIZE-src->length >= RZYNC_DELTA_HEDER_SIZE) {
-		int match_found = 0;
-		/* try to find the first matched block in the file buffer */
-		checksum_t *chksm = hash_search(src->hashtable,&rcksm);
+	/* try to pack the bytes in file buffer into the socket buffer */
+	while(1) {
+		int match_found = 0;	// initialized to 0 as not_found
+		/* try to find a matched block in the file buffer */
+		checksum_t *chksm = hash_search(src->hashtable,rcksm);
 		if(!chksm) {
 			/* rolling checksum not match */
 			goto one_byte_forward;
@@ -480,26 +481,104 @@ calculate_delta:
 one_byte_forward:
 		/* is there still some bytes for us to move forward? */
 		if(checking_match_end == src->src_delta.buf.length) {
-			/* cannot move forward */
+			/* cannot move forward 
+			 * return after pack delta into buffer */
 			goto pack_delta;
 		}
 		assert(checking_match_end < src->src_delta.buf.length);
-		char old_ch = file_buf[checking_match_start++];
-		char new_ch = file_buf[++checking_match_end];
+		unsigned char old_ch = file_buf[checking_match_start++];
+		unsigned char new_ch = file_buf[++checking_match_end];
 		blk_b4_match_end = checking_match_start;
 		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
 		continue;
 pack_delta:
-		/* put delta into socket buffer
-		 * ESTIMATE THE BUFFER CAPACITY 
-		 * BEFORE REALLY PUT THE DELTA INTO IT
-		 * 1) if enough room in the buffer, 
-		 *    put it and update the buffer state
-		 *    and start a new loop
-		 * 2) do not update the buffer state 
-		 *    if no enough room, then terminate 
-		 *    the while loop */
+		/* We get here for two possible reasons:
+		 * 1) A match is found, pack the unmatched(if there is one..)
+		 * and the matched block into the socket buffer, update some 
+		 * states and continue.
+		 *
+		 * 2) No match is found, the checking_match block must have 
+		 * reached the end of the file buffer. We pack all the bytes 
+		 * within the range of 
+		 * [ src->src_delta.buf.offset , checking_match_start ]
+		 * ( with both side inclusive )
+		 *
+		 * ---------------- about the buffer management --------------
+		 *  There's no need to check if there is free space in the 
+		 *  buffer, because the file buffer is of the same size with 
+		 *  the socket size.
+		 *  Each time prepare_delta() function is called, we assume 
+		 *  that bytes in socket buffer are all sent, so we can clear
+		 *  the buffer and get ready to hold the new delta data.
+		 *  At the same time, the data in file buffer is at most equal 
+		 *  to the size of socket buffer. However we will never send 
+		 *  more than a total file_buf as delta data. Actually, the most
+		 *  number of bytes we will send as delta data is
+		 *
+		 *		RZYNC_DETLTA_BUF_SIZE - RZYNC_BLOCK_SIZE + 1
+		 *
+		 *  which is the worst case when no matched block is found in 
+		 *  the whole buffer.
+		 * */
+		if(match_found == 1) {
+			/* pack the unmatched(if there is one..) and matched block */
+			unsigned int un_matched_block_sz = 
+				blk_b4_match_end - blk_b4_match_start;
+			assert(un_matched_block_sz >= 0);
+			if(un_matched_block_sz > 0) {
+				/* there is an unmatched block before the matched one */
+				/* pack delta header */
+				int delta_header_sz = snprintf(src->buf+src->length,
+						RZYNC_BUF_SIZE-src->length,
+						"$%c$%u\n",
+						DELTA_NDUP,un_matched_block_sz);
+				/* update src->length */
+				src->length += delta_header_sz;
+				/* packer delta data */
+				memcpy(src->buf+src->length,
+						file_buf+blk_b4_match_start,
+						un_matched_block_sz);
+				src->length += un_matched_block_sz;
+			}
+			/* pack the header of duplicated block */
+			int delta_header_sz = snprintf(src->buf+src->length,
+					RZYNC_BUF_SIZE-src->length,
+					"$%c$%u\n",
+					DELTA_DUP,chksm->block_nr);
+			src->length += delta_header_sz;
+			/* update state */
+			src->src_delta.buf.offset = checking_match_end;
+			blk_b4_match_start = src->src_delta.buf.offset;
+			blk_b4_match_end = blk_b4_match_start;
+			checking_match_start = blk_b4_match_end;
+			checking_match_end = checking_match_start + block_sz;
+			if(checking_match_end > src->src_delta.buf.length) {
+				/* less than one block left in the buffer */
+				return PREPARE_DELTA_OK;
+			}
+		}else {
+			/* no match found, just pack the unmatched delta
+			 * after then, return PREPARE_DELTA_OK */
+			src->src_delta.buf.offset = (++blk_b4_match_end);
+			unsigned un_matched_block_sz = 
+				blk_b4_match_end - blk_b4_match_start;
+			assert(un_matched_block_sz > 0);
+			int delta_header_sz = 
+				snprintf(src->buf+src->length,
+						RZYNC_BUF_SIZE-src->length,
+						"$%c$%u\n",
+						DELTA_NDUP,un_matched_block_sz);
+			src->length += delta_header_sz;
+			memcpy(src->buf+src->length,
+					file_buf+blk_b4_match_start,
+					un_matched_block_sz);
+			src->length += un_matched_block_sz;
+			return PREPARE_DELTA_OK;
+		}
 	}
+	/* impossible */
+	printf("Something is wrong if you see this...........................\n");
+	return PREPARE_DELTA_OK;
 }
 
 
