@@ -28,6 +28,8 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 		perror("open file");
 		return INIT_RZYNC_SRC_ERR;
 	}
+	/* lseek to start */
+	lseek(src->filefd,0,SEEK_SET);
 	/* set SRC_INIT state */
 	src->state = SRC_INIT;
 	src->offset = 0;
@@ -64,12 +66,12 @@ void prepare_send_sync_request(rzync_src_t *src)
 }
 
 enum {
-	SEND_SYNC_REQ_OK = 0,
-	SEND_SYNC_REQ_NOT_COMPLETE,
-	SEND_SYNC_REQ_ERR
+	SEND_SRC_BUF_OK = 0,
+	SEND_SRC_BUF_NOT_COMPLETE,
+	SEND_SRC_BUF_ERR
 };
-/* send_sync_request : Send the sync-req in the buffer */
-int send_sync_request(rzync_src_t *src)
+
+int send_src_buf(rzync_src_t *src)
 {
 	int n = write(src->sockfd,
 			src->buf + src->offset,
@@ -78,18 +80,18 @@ int send_sync_request(rzync_src_t *src)
 		if(errno == EINTR) {
 			/* send req at next loop
 			 * DO NOT CHANGE STATE NOW */
-			return SEND_SYNC_REQ_NOT_COMPLETE;
+			return SEND_SRC_BUF_NOT_COMPLETE;
 		}
-		return SEND_SYNC_REQ_ERR;
+		return SEND_SRC_BUF_ERR;
 	} else if(n == 0) {
 		/* connection closed */
-		return SEND_SYNC_REQ_ERR;
+		return SEND_SRC_BUF_ERR;
 	}
 	src->offset += n;
 	if(src->offset == src->length) {
-		return SEND_SYNC_REQ_OK;
+		return SEND_SRC_BUF_OK;
 	}
-	return SEND_SYNC_REQ_NOT_COMPLETE;
+	return SEND_SRC_BUF_NOT_COMPLETE;
 }
 
 enum {
@@ -146,6 +148,7 @@ int prepare_receive_checksums(rzync_src_t *src)
 
 	/* make a hash table for the checksums */
 	unsigned int hash_bits = choose_hash_bits(src->checksum_header.block_nr);
+	printf("hash_bits -- %u hash_nr -- %u\n",hash_bits,(1<<hash_bits));
 	src->hashtable = checksum_hashtable_init(hash_bits);
 	if(!src->hashtable) {
 		return PREPARE_RECV_CHCKSMS_ERR;
@@ -219,22 +222,27 @@ int parse_checksum(char *buf,checksum_t *chksm)
 	return PARSE_CHECKSUM_OK;
 }
 
+inline unsigned int very_simple_hash(unsigned int num,unsigned int mod)
+{
+	return num % mod;
+}
+
 inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 {
-	int hash_pos = chksm->rcksm.rolling_checksum % ht->hash_nr;
+	unsigned int hash_pos = very_simple_hash(chksm->rcksm.rolling_checksum,ht->hash_nr);
 	list_add(&chksm->hash,&ht->slots[hash_pos]);
 }
 
 #define checksumof(lh)	containerof(lh,checksum_t,hash)
 #define for_each_checksum_in_slot(ht,slot_nr,lh,chksm)	\
-	for(lh=&ht->slots[slot_nr].next,chksm=checksumof(lh);	\
+	for(lh=ht->slots[slot_nr].next,chksm=checksumof(lh);	\
 			lh!=&ht->slots[slot_nr];	\
 			lh=lh->next)
 /* only compare the rolling hash
  * checking the md5, if rolling hash matches */
 checksum_t *hash_search(checksum_hashtable_t *ht,checksum_t *chksm)
 {
-	int hash_pos = chksm->rcksm.rolling_checksum % ht->hash_nr;
+	unsigned int hash_pos = very_simple_hash(chksm->rcksm.rolling_checksum,ht->hash_nr);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
@@ -243,6 +251,20 @@ checksum_t *hash_search(checksum_hashtable_t *ht,checksum_t *chksm)
 		}
 	}
 	return NULL;
+}
+
+void hash_analysis(checksum_hashtable_t *ht)
+{
+	printf("ht -- hash_bits -- %u hash_nr -- %u\n",ht->hash_bits,ht->hash_nr);
+	int i;
+	for(i=0;i<ht->hash_nr;i++) {
+		printf("hash[%u] -- ",i);
+		struct list_head *lh;
+		for(lh=ht->slots[i].next;lh!=&ht->slots[i];lh=lh->next) {
+			putchar('#');
+		}
+		putchar('\n');
+	}
 }
 
 enum {
@@ -264,9 +286,9 @@ int receive_checksums(rzync_src_t *src)
 	unsigned int chksm_nr = CHKSMS_EACH_BUF_SRC<chksm_left?CHKSMS_EACH_BUF_SRC:chksm_left;
 	printf("checksums left -- %u CHKSMS_EACH_BUF_SRC -- %u -- chksm_nr -- %u\n",chksm_left,CHKSMS_EACH_BUF_SRC,chksm_nr);
 	unsigned int bytes_nr = chksm_nr * RZYNC_CHECKSUM_SIZE;
+	/* clear buf */
 	src->length = 0;
 	memset(src->buf,0,RZYNC_BUF_SIZE);
-
 	/* receive the checksums */
 	while(src->length != bytes_nr) {
 		int n = read(src->sockfd,src->buf+src->length,bytes_nr-src->length);
@@ -282,7 +304,6 @@ int receive_checksums(rzync_src_t *src)
 		}
 		src->length += n;
 	}
-//	printf("checksums -- %s\n",src->buf);
 	/* parse these checksums */
 	int i;
 	char *p = src->buf;
@@ -316,6 +337,113 @@ inline void prepare_receive_checksum_header(rzync_src_t *src)
 	src->length = src->offset = 0;
 	memset(src->buf,0,RZYNC_BUF_SIZE);
 }
+
+/* simply initialize the delta struct in the rzync_src_t */
+void prepare_send_delta(rzync_src_t *src)
+{
+	src->src_delta.offset = 0;
+	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
+	/* clear file buf */
+	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
+	memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+	/* set to start */
+	lseek(src->filefd,0,SEEK_SET);
+}
+
+enum {
+	PREPARE_DELTA_OK = 0,
+	PREPARE_DELTA_NO_MORE_TO_SEND,
+	PREPARE_DELTA_ERR
+};
+int prepare_delta(rzync_src_t *src)
+{
+	unsigned int in_buf_not_processed = 
+		src->src_delta.buf.length - src->src_delta.buf.offset;
+	assert(in_buf_not_processed > 0);
+	if(in_buf_not_processed >= src->checksum_header.block_sz) {
+		/* enough data to process,
+		 * directly go to calculate delta */
+		goto calculate_delta;
+	}
+	/* else try to read more data from file */
+	if(in_buf_not_processed > 0) {
+		/* If there're some data in the buffer,
+		 * move them to the beginning of the buffer 
+		 * Use tmp buf to avoid overlapping of the move operation */
+		char *tmp_buf = (char*)malloc(in_buf_not_processed+1);
+		if(!tmp_buf) {
+			return PREPARE_DELTA_ERR;
+		}
+		/* copy to tmp buffer */
+		memcpy(tmp_buf,
+				src->src_delta.buf.buf+src->src_delta.buf.offset,
+				in_buf_not_processed);
+		/* clear buffer */
+		memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+		/* copy back */
+		memcpy(src->src_delta.buf.buf,tmp_buf,in_buf_not_processed);
+		free(tmp_buf);
+	}else if(in_buf_not_processed == 0){
+		/* simply clear the buffer */
+		memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
+	}
+	/* re-set offset and length */
+	src->src_delta.buf.length = in_buf_not_processed;
+	src->src_delta.buf.offset = 0;
+	/* read more from file */
+	unsigned int bytes_in_file_not_processed = 
+		src->size - src->src_delta.offset;
+	if(bytes_in_file_not_processed == 0) {
+		/* no more data to read from file,
+		 * calculate from the data currently in buffer */
+		goto calculate_delta;
+	}
+	assert(bytes_in_file_not_processed > 0);
+	/* bytes_in_file_not_processed > 0 */
+	unsigned int buf_capcity = RZYNC_DETLTA_BUF_SIZE - src->src_delta.buf.length;
+	unsigned int to_read = 
+		buf_capcity<bytes_in_file_not_processed?buf_capcity:bytes_in_file_not_processed;
+	int already_read = 0;
+	/* make sure */
+	while(already_read != to_read) {
+		int n = read(src->filefd,
+				src->src_delta.buf.buf+in_buf_not_processed+already_read,
+				to_read-already_read);
+		if(n < 0) {
+			if(errno == EINTR) {
+				continue;
+			}
+			/* unrecoverable error */
+			return PREPARE_DELTA_ERR;
+		}
+		already_read += n;
+	}
+	/* update some state */
+	src->src_delta.offset += already_read;
+	src->src_delta.buf.length += already_read;
+calculate_delta:
+	in_buf_not_processed = 
+		src->src_delta.buf.length - src->src_delta.buf.offset;
+	if(in_buf_not_processed == 0) {
+		/* NO MORE DATA TO PROCESS */
+		return PREPARE_DELTA_NO_MORE_TO_SEND;
+	}
+	assert(in_buf_not_processed > 0);
+	/* clear socket buf */
+	memset(src->buf,0,RZYNC_BUF_SIZE);
+	if(in_buf_not_processed < src->checksum_header.block_nr) {
+		/* the last block to process, no need to calculate */
+		snprintf(src->buf,RZYNC_BUF_SIZE,"$%c$%u\n",DELTA_NDUP,in_buf_not_processed);
+		int delta_header_len = strlen(src->buf);
+		memcpy(src->buf+delta_header_len,
+				src->src_delta.buf.buf+src->src_delta.buf.offset,
+				in_buf_not_processed);
+		src->length = delta_header_len + in_buf_not_processed;
+		return PREPARE_DELTA_OK;
+	}
+	/* the real challenge comes here... */
+}
+
 
 int main(int argc,char *argv[])
 {
@@ -364,25 +492,25 @@ int main(int argc,char *argv[])
 
 	/* prepare sync req, put sync req to the buffer */
 	prepare_send_sync_request(&src);
-
 	while(1) {
 		switch(src.state) {
 			case SRC_INIT:
 				{
-					/* send sync req */
-					int i = send_sync_request(&src);
-					if(i == SEND_SYNC_REQ_OK) {
+					/* send sync req in the buffer */
+					int i = send_src_buf(&src);
+					if(i == SEND_SRC_BUF_OK) {
 						/* when sync req sent ok
 						 * prepare to receive checksum header 
 						 * simply by clearing the buf */
 						prepare_receive_checksum_header(&src);
 						/* update to new stage */
 						src.state = SRC_REQ_SENT;
-					}else if(i == SEND_SYNC_REQ_ERR) {
+					}else if(i == SEND_SRC_BUF_ERR) {
 						goto clean_up;
 					}
 					/* else if sync req is not sent completely,
-					 * send it in next loop */
+					 * send it in next loop 
+					 * state is not changed now */
 				}
 				break;
 			case SRC_REQ_SENT:
@@ -421,40 +549,49 @@ int main(int argc,char *argv[])
 				/* When all checksums recved, prepare for delta file */
 				prepare_send_delta(&src);
 				/* set to next stage */
-				src->state = SRC_CALCULATE_DELTA;
+				src.state = SRC_CALCULATE_DELTA;
 				break;
 			case SRC_CALCULATE_DELTA:
 				/* process the file in the buffer 
 				 * calculate the delta data
 				 * pack the result to the buffer */
-				calculate_delta(&src);
+				{
+					int i = prepare_delta(&src);
+					if(i == PREPARE_DELTA_OK) {
+						/* set to SRC_SEND_DELTA */
+						src.state = SRC_SEND_DELTA;
+					}else if(i == PREPARE_DELTA_NO_MORE_TO_SEND) {
+						/* set to SRC_DELTA_FILE_DONE 
+						 * since all deltas have been sent */
+						src.state = SRC_DELTA_FILE_DONE;
+					}else {
+						goto clean_up;
+					}
+				}
 				break;
 			case SRC_SEND_DELTA:
-				/* send the data in the buf
-				 * if all bytes have been processed, set to SRC_DELTA_FILE_DONE
-				 * else if still bytes to be processed,
-				 * set backward to SRC_CALCULATE_DELTA */
-				send_delta(&src);
+				/* send the data in the buf */
+				{
+					int i = send_src_buf(&src);
+					if(i == SEND_SRC_BUF_OK) {
+						src.state = SRC_CALCULATE_DELTA;
+					} else if(i == SEND_SRC_BUF_ERR) {
+						goto clean_up;
+					}
+				}
 				break;
 			case SRC_DELTA_FILE_DONE:
+				/* Done */
+				goto clean_up;
 			case SRC_DONE:
+				/* undefined */
+				goto clean_up;
 			default:
-				break;
+				goto clean_up;
 		}
 	}
 clean_up:
 	src_cleanup(&src);
 	return 0;
-}
-
-/* simply initialize the delta struct in the rzync_src_t */
-void prepare_send_delta(rzync_src_t *src)
-{
-	src->src_delta.offset = 0;
-	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
-	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
-	memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
-	/* set to start */
-	lseek(src->filefd,0,SEEK_SET);
 }
 
