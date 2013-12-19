@@ -577,6 +577,10 @@ int main()
 		return 1;
 	}
 
+	/* set reuse addr */
+	int flag = 1;
+	setsockopt(lfd,SOL_SOCKET,SO_REUSEADDR,&flag,sizeof(flag));
+
 	if(bind(lfd,(struct sockaddr*)&addr,addr_len) != 0) {
 		perror("bind");
 		return 1;

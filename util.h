@@ -8,7 +8,7 @@ inline void set_nonblock(int fd)
 }
 
 #define STR2I_PARSE_FAIL	-1
-int str2i(char **pp,char start_pat,char end_pat)
+inline int str2i(char **pp,char start_pat,char end_pat)
 {
 	char *p = *pp;
 	if(*p++ != start_pat) {
@@ -30,7 +30,7 @@ int str2i(char **pp,char start_pat,char end_pat)
 }
 
 #define STR2LL_PARSE_FAIL	-1
-long long str2ll(char **pp,char start_pat,char end_pat)
+inline long long str2ll(char **pp,char start_pat,char end_pat)
 {
 	char *p = *pp;
 	if(*p++ != start_pat) {

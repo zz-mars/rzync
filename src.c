@@ -360,9 +360,11 @@ int prepare_delta(rzync_src_t *src)
 	/* block size */
 	unsigned int block_sz = src->checksum_header.block_sz;
 	unsigned int block_nr = src->checksum_header.block_nr;
+	printf("block_sz -- %u block_nr -- %u\n",block_sz,block_nr);
 	char *file_buf = src->src_delta.buf.buf;
 	unsigned int in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
+	printf("in_buf_not_processed -- %u\n",in_buf_not_processed);
 	assert(in_buf_not_processed >= 0);
 	if(in_buf_not_processed >= block_sz) {
 		/* enough data to process,
@@ -370,6 +372,7 @@ int prepare_delta(rzync_src_t *src)
 		goto calculate_delta;
 	}
 	/* else try to read more data from file */
+	printf("need more date from file.......................\n");
 	if(in_buf_not_processed > 0) {
 		/* If there're some data in the buffer,
 		 * move them to the beginning of the buffer 
@@ -395,8 +398,9 @@ int prepare_delta(rzync_src_t *src)
 	src->src_delta.buf.length = in_buf_not_processed;
 	src->src_delta.buf.offset = 0;
 	/* read more from file */
-	unsigned int bytes_in_file_not_processed = 
+	unsigned long long bytes_in_file_not_processed = 
 		src->size - src->src_delta.offset;
+	printf("bytes_in_file_not_processed -- %llu\n",bytes_in_file_not_processed);
 	if(bytes_in_file_not_processed == 0) {
 		/* no more data to read from file,
 		 * calculate from the data currently in buffer */
@@ -405,8 +409,10 @@ int prepare_delta(rzync_src_t *src)
 	assert(bytes_in_file_not_processed > 0);
 	/* bytes_in_file_not_processed > 0 */
 	unsigned int buf_capcity = RZYNC_DETLTA_BUF_SIZE - src->src_delta.buf.length;
+	printf("buf_capcity -- %u\n",buf_capcity);
 	unsigned int to_read = 
 		buf_capcity<bytes_in_file_not_processed?buf_capcity:bytes_in_file_not_processed;
+	printf("to_read -- %u\n",to_read);
 	int already_read = 0;
 	/* make sure */
 	while(already_read != to_read) {
@@ -425,11 +431,15 @@ int prepare_delta(rzync_src_t *src)
 	/* update some state */
 	src->src_delta.offset += already_read;
 	src->src_delta.buf.length += already_read;
+	printf("buf.length -- %u\n",src->src_delta.buf.length);
+	printf("file.offset -- %llu\n",src->src_delta.offset);
 calculate_delta:
 	in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
+	printf("currently in_buf_not_processed -- %u\n",in_buf_not_processed);
 	if(in_buf_not_processed == 0) {
 		/* NO MORE DATA TO PROCESS */
+		printf("no more data to process....................\n");
 		return PREPARE_DELTA_NO_MORE_TO_SEND;
 	}
 	assert(in_buf_not_processed > 0);
@@ -437,6 +447,7 @@ calculate_delta:
 	memset(src->buf,0,RZYNC_BUF_SIZE);
 	src->length = src->offset = 0;
 	if(in_buf_not_processed < block_sz) {
+		printf("in_buf_not_processed < block_sz...................\n");
 		/* the last block to process, no need to calculate */
 		int delta_header_len =	snprintf(src->buf+src->length,
 				RZYNC_BUF_SIZE-src->length,
@@ -687,6 +698,10 @@ int main(int argc,char *argv[])
 				prepare_send_delta(&src);
 				/* set to next stage */
 				src.state = SRC_CALCULATE_DELTA;
+			//	/*-------------------------------------------------------------------- test  ---------------*/
+			//	hash_analysis(src.hashtable);
+			//	goto clean_up;
+			//	/*-------------------------------------------------------------------- test  ---------------*/
 				break;
 			case SRC_CALCULATE_DELTA:
 				/* process the file in the buffer 
@@ -695,6 +710,9 @@ int main(int argc,char *argv[])
 				{
 					int i = prepare_delta(&src);
 					if(i == PREPARE_DELTA_OK) {
+						printf("prepare_delta ok...................\n");
+						printf("%s\n",src.buf);
+						goto clean_up;	// for test
 						/* set to SRC_SEND_DELTA */
 						src.state = SRC_SEND_DELTA;
 					}else if(i == PREPARE_DELTA_NO_MORE_TO_SEND) {
