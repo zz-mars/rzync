@@ -707,6 +707,11 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_SEND_DELTA:
+				/*---------------- for test  -----------------*/
+				/* for test : do not send the delta */
+				src.state = SRC_CALCULATE_DELTA;
+				break;
+				/*---------------- for test  -----------------*/
 				/* send the data in the buf */
 				{
 					int i = send_src_buf(&src);
