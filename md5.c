@@ -402,3 +402,15 @@ void md5s_of_str(unsigned char * input,int len, char *md5s)
 	bzero(md5s,MD5_STRING_LEN);
 	md5_2_str(md5_checksum, md5s);
 }
+
+int md5s_of_file(unsigned char *filename,char *md5s)
+{
+	unsigned char md5_checksum[MD5_CHECKSUM_SZ] = {0};
+	int i = md5_file(filename,md5_checksum);
+	if(i == 0) {
+		memset(md5s,0,MD5_STRING_LEN);
+		md5_2_str(md5_checksum,md5s);
+	}
+	return i;
+}
+

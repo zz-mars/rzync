@@ -74,6 +74,7 @@ void checksum_hashtable_destory(checksum_hashtable_t *ht);
 /* ----------------- src side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
+	char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 	unsigned long long size;	// file size in bytes
 	long long mtime;	// modification time of the file from the src side
 	int filefd;	// file fd
@@ -105,6 +106,7 @@ typedef struct {
 /* ----------------- dest side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
+	char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 	unsigned long long size;	// file size in bytes
 	long long mtime;	// modification time of the file from the src side
 	struct {
@@ -186,6 +188,7 @@ enum dst_state {
  *	  $filename\n
  *	  $size\n
  *	  $modification_time\n
+ *	  $md5\n
  *   ---------------------------------
  * 3) Once the dst side receives this information, it checks file specified 
  *   by the request in its current working directory. Get the size then send 
@@ -223,10 +226,6 @@ enum dst_state {
 
 #define DELTA_DUP	'D'		// duplicate flag
 #define DELTA_NDUP	'N'		// non-deuplicate flag
-typedef struct delta_header_t {
-	unsigned char flag;	// duplicate flag
-	unsigned int nr;	// block_nr or content size
-} delta_header_t;
 
 #endif
 

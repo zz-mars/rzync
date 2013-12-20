@@ -15,12 +15,19 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 		return INIT_RZYNC_SRC_ERR;
 	}
 	strncpy(src->filename,filename,filenamelen);
+	/* set md5 */
+	if(md5s_of_file(src->filename,src->md5) != 0) {
+		return INIT_RZYNC_SRC_ERR;
+	}
+	src->md5[RZYNC_MD5_CHECK_SUM_BITS] = '\0';
+	/* file size */
 	struct stat stt;
 	if(stat(filename,&stt) != 0) {
 		perror("stat");
 		return INIT_RZYNC_SRC_ERR;
 	}
 	src->size = stt.st_size;	// total size in bytes
+	/* modification time */
 	src->mtime = stt.st_mtime;
 	/* open local file */
 	src->filefd = open(filename,O_RDONLY);
@@ -56,11 +63,12 @@ void prepare_send_sync_request(rzync_src_t *src)
 {
 	int filenamelen = strlen(src->filename);
 	memset(src->buf,0,RZYNC_BUF_SIZE);
-	snprintf(src->buf,RZYNC_BUF_SIZE,"#%u\n$%s\n$%llu\n$%llu\n",
+	snprintf(src->buf,RZYNC_BUF_SIZE,"#%u\n$%s\n$%llu\n$%llu\n$%s\n",
 			filenamelen,
 			src->filename,
 			src->size,
-			src->mtime);
+			src->mtime,
+			src->md5);
 	src->length = RZYNC_FILE_INFO_SIZE;
 	src->offset = 0;
 }
