@@ -177,7 +177,6 @@ enum {
 int prepare_checksums(rzync_dst_t *ins)
 {
 	int checksums_left = ins->dst_local_file.block_nr - ins->dst_local_file.checksum_sent;
-	printf("checksums_left to be sent --------- %u\n",checksums_left);
 	if(checksums_left == 0) {
 		printf("prepare checksums -- All checksums have been sent..........\n");
 		/* If all checksums have been sent,
@@ -188,16 +187,13 @@ int prepare_checksums(rzync_dst_t *ins)
 			printf("prepare_receive_delta_file failed, need clean up............\n");
 			return PREPARE_CHECKSUMS_ERR;
 		}
-		printf("prepare_receive_delta_file ok.....................\n");
-		printf("Set to new stage -- DST_CHKSM_ALL_SENT.........\n");
+		printf("prepare_receive_delta_file ok...............Set to new stage -- DST_CHKSM_ALL_SENT.........\n");
 		ins->state = DST_CHKSM_ALL_SENT;
 		return PREPARE_CHECKSUMS_NEED_SET_EV_READ;
 	} else if(checksums_left < 0) {
-		printf("unexpected error -- checksums left < 0 ............\n");
 		return PREPARE_CHECKSUMS_ERR;
 	}
 
-	printf("Total checksums that the buffer can holds -- %u\n",CHECKSUMS_NR_IN_TOTAL_BUF);
 	int how_many_to_send_this_time; 
 	if(CHECKSUMS_NR_IN_TOTAL_BUF < checksums_left) {
 		/* most of the cases */

@@ -237,16 +237,20 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 #define for_each_checksum_in_slot(ht,slot_nr,lh,chksm)	\
 	for(lh=ht->slots[slot_nr].next,chksm=checksumof(lh);	\
 			lh!=&ht->slots[slot_nr];	\
-			lh=lh->next)
+			lh=lh->next,chksm=checksumof(lh))
+
+//#define for_each_list_head_in_slot(ht,slot_nr,lh,chksm)	\
+//	for(lh=ht->slots[slot_nr].next,chksm=checksumof(lh);lh!=&ht->slots[slot_nr];lh=lh->next)
+
 /* only compare the rolling hash
  * checking the md5, if rolling hash matches */
-checksum_t *hash_search(checksum_hashtable_t *ht,rolling_checksum_t rcksm)
+checksum_t *hash_search(checksum_hashtable_t *ht,unsigned int rcksm)
 {
-	unsigned int hash_pos = very_simple_hash(rcksm.rolling_checksum,ht->hash_nr);
+	unsigned int hash_pos = very_simple_hash(rcksm,ht->hash_nr);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
-		if(cksm->rcksm.rolling_checksum == rcksm.rolling_checksum) {
+		if(cksm->rcksm.rolling_checksum == rcksm) {
 			return cksm;
 		}
 	}
@@ -260,8 +264,12 @@ void hash_analysis(checksum_hashtable_t *ht)
 	for(i=0;i<ht->hash_nr;i++) {
 		printf("hash[%u] -- ",i);
 		struct list_head *lh;
-		for(lh=ht->slots[i].next;lh!=&ht->slots[i];lh=lh->next) {
-			putchar('#');
+		checksum_t *chksm;
+		for_each_checksum_in_slot(ht,i,lh,chksm) {
+			printf("R%uA%uB%u : ",
+					chksm->rcksm.rolling_checksum,
+					chksm->rcksm.rolling_AB.A,
+					chksm->rcksm.rolling_AB.B);
 		}
 		putchar('\n');
 	}
@@ -341,6 +349,7 @@ inline void prepare_receive_checksum_header(rzync_src_t *src)
 /* simply initialize the delta struct in the rzync_src_t */
 void prepare_send_delta(rzync_src_t *src)
 {
+	/* bytes already read from file */
 	src->src_delta.offset = 0;
 	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
 	/* clear file buf */
@@ -372,8 +381,9 @@ int prepare_delta(rzync_src_t *src)
 		goto calculate_delta;
 	}
 	/* else try to read more data from file */
-	printf("need more date from file.......................\n");
+	printf("need more data from file.......................\n");
 	if(in_buf_not_processed > 0) {
+		printf("need move data in the buffer to the very start of the buffer.............\n");
 		/* If there're some data in the buffer,
 		 * move them to the beginning of the buffer 
 		 * Use tmp buf to avoid overlapping of the move operation */
@@ -392,6 +402,7 @@ int prepare_delta(rzync_src_t *src)
 		free(tmp_buf);
 	}else if(in_buf_not_processed == 0){
 		/* simply clear the buffer */
+		printf("no data in the file buf, simply clear the buffer...............\n");
 		memset(file_buf,0,RZYNC_DETLTA_BUF_SIZE);
 	}
 	/* re-set offset and length */
@@ -414,7 +425,8 @@ int prepare_delta(rzync_src_t *src)
 		buf_capcity<bytes_in_file_not_processed?buf_capcity:bytes_in_file_not_processed;
 	printf("to_read -- %u\n",to_read);
 	int already_read = 0;
-	/* make sure */
+	/* lseek to the right position */
+	lseek(src->filefd,src->src_delta.offset,SEEK_SET);
 	while(already_read != to_read) {
 		int n = read(src->filefd,
 				file_buf+in_buf_not_processed+already_read,
@@ -453,12 +465,14 @@ calculate_delta:
 				RZYNC_BUF_SIZE-src->length,
 				"$%c$%u\n",
 				DELTA_NDUP,in_buf_not_processed);
+		printf("delta_header -- %s",src->buf+src->length);
 		memcpy(src->buf+src->length+delta_header_len,
 				file_buf+src->src_delta.buf.offset,
 				in_buf_not_processed);
 		src->length += (delta_header_len + in_buf_not_processed);
 		return PREPARE_DELTA_OK;
 	}
+	printf("in_buf_not_processed > block_sz.......................\n");
 	/* the real challenge comes here... */
 	/* the block before the matched one */
 	unsigned int blk_b4_match_start = src->src_delta.buf.offset;
@@ -466,18 +480,34 @@ calculate_delta:
 	/* the block which is checked for match */
 	unsigned int checking_match_start = blk_b4_match_end;
 	unsigned int checking_match_end = checking_match_start + block_sz;
+	assert(checking_match_end < src->src_delta.buf.length);
 	/* calculate the rolling checksum of the first block */
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
+	printf("first block -- rolling_checksum -- %u rolling_checksum.A -- %u rolling_checksum.B -- %u\n",
+			rcksm.rolling_checksum,rcksm.rolling_AB.A,rcksm.rolling_AB.B);
+	{
+		/* for test */
+		checksum_t *testck = hash_search(src->hashtable,rcksm.rolling_checksum);
+		if(!testck) {
+			printf("first blk not found!\n");
+		} else {
+			printf("first blk found...............\n");
+		}
+	}
 	/* try to pack the bytes in file buffer into the socket buffer */
 	while(1) {
+	//	printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
+	//			blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
 		int match_found = 0;	// initialized to 0 as not_found
 		/* try to find a matched block in the file buffer */
-		checksum_t *chksm = hash_search(src->hashtable,rcksm);
+		checksum_t *chksm = hash_search(src->hashtable,rcksm.rolling_checksum);
 		if(!chksm) {
+		//	printf("rolling checksum match not found!.............................\n");
 			/* rolling checksum not match */
 			goto one_byte_forward;
 		}else {
 			/* rolling checksum matched, compare the md5 */
+			printf("rolling checksum match found.............................\n");
 			char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 			memset(md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
 			md5s_of_str(file_buf+checking_match_start,block_sz,md5);
@@ -699,7 +729,7 @@ int main(int argc,char *argv[])
 				/* set to next stage */
 				src.state = SRC_CALCULATE_DELTA;
 			//	/*-------------------------------------------------------------------- test  ---------------*/
-			//	hash_analysis(src.hashtable);
+				hash_analysis(src.hashtable);
 			//	goto clean_up;
 			//	/*-------------------------------------------------------------------- test  ---------------*/
 				break;
@@ -711,7 +741,7 @@ int main(int argc,char *argv[])
 					int i = prepare_delta(&src);
 					if(i == PREPARE_DELTA_OK) {
 						printf("prepare_delta ok...................\n");
-						printf("%s\n",src.buf);
+					//	printf("%s\n",src.buf);
 						goto clean_up;	// for test
 						/* set to SRC_SEND_DELTA */
 						src.state = SRC_SEND_DELTA;

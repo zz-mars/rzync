@@ -85,7 +85,7 @@ typedef struct {
 	} checksum_header;
 	/* src delta */
 	struct {
-		unsigned long long offset;	// bytes already processed
+		unsigned long long offset;	// bytes already read from file
 		checksum_t chksm;			// checksum
 		struct {
 			unsigned int offset;	// current offset in buf
