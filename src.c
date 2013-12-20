@@ -426,7 +426,7 @@ int prepare_delta(rzync_src_t *src)
 	printf("to_read -- %u\n",to_read);
 	int already_read = 0;
 	/* lseek to the right position */
-	lseek(src->filefd,src->src_delta.offset,SEEK_SET);
+//	lseek(src->filefd,src->src_delta.offset,SEEK_SET);
 	while(already_read != to_read) {
 		int n = read(src->filefd,
 				file_buf+in_buf_not_processed+already_read,
@@ -483,21 +483,21 @@ calculate_delta:
 	assert(checking_match_end < src->src_delta.buf.length);
 	/* calculate the rolling checksum of the first block */
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
-	printf("first block -- rolling_checksum -- %u rolling_checksum.A -- %u rolling_checksum.B -- %u\n",
-			rcksm.rolling_checksum,rcksm.rolling_AB.A,rcksm.rolling_AB.B);
-	{
-		/* for test */
-		checksum_t *testck = hash_search(src->hashtable,rcksm.rolling_checksum);
-		if(!testck) {
-			printf("first blk not found!\n");
-		} else {
-			printf("first blk found...............\n");
-		}
-	}
+//	printf("first block -- rolling_checksum -- %u rolling_checksum.A -- %u rolling_checksum.B -- %u\n",
+//			rcksm.rolling_checksum,rcksm.rolling_AB.A,rcksm.rolling_AB.B);
+//	{
+//		/* for test */
+//		checksum_t *testck = hash_search(src->hashtable,rcksm.rolling_checksum);
+//		if(!testck) {
+//			printf("first blk not found!\n");
+//		} else {
+//			printf("first blk found...............\n");
+//		}
+//	}
 	/* try to pack the bytes in file buffer into the socket buffer */
 	while(1) {
-	//	printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
-	//			blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
+		printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
+				blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
 		int match_found = 0;	// initialized to 0 as not_found
 		/* try to find a matched block in the file buffer */
 		checksum_t *chksm = hash_search(src->hashtable,rcksm.rolling_checksum);
@@ -507,19 +507,20 @@ calculate_delta:
 			goto one_byte_forward;
 		}else {
 			/* rolling checksum matched, compare the md5 */
-			printf("rolling checksum match found.............................\n");
 			char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 			memset(md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
 			md5s_of_str(file_buf+checking_match_start,block_sz,md5);
 			if(memcmp(md5,chksm->md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
 				/* matched block found */
 				match_found = 1;
+				printf("match found.............................\n");
 				goto pack_delta;
 			} else {
 				goto one_byte_forward;
 			}
 		}
 one_byte_forward:
+		printf("need one byte forward.....................\n");
 		/* is there still some bytes for us to move forward? */
 		if(checking_match_end == src->src_delta.buf.length) {
 			/* cannot move forward 
@@ -531,8 +532,12 @@ one_byte_forward:
 		unsigned char new_ch = file_buf[++checking_match_end];
 		blk_b4_match_end = checking_match_start;
 		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
+		/* test rolling checksum */
+		rolling_checksum_t direct_calculated_rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
+		assert(rcksm.rolling_checksum == direct_calculated_rcksm.rolling_checksum);
 		continue;
 pack_delta:
+		printf("pack delta....................\n");
 		/* We get here for two possible reasons:
 		 * 1) A match is found, pack the unmatched(if there is one..)
 		 * and the matched block into the socket buffer, update some 
@@ -589,14 +594,17 @@ pack_delta:
 			src->length += delta_header_sz;
 			/* update state */
 			src->src_delta.buf.offset = checking_match_end;
+			if(src->src_delta.buf.length-src->src_delta.buf.offset<block_sz) {
+				/* less than one block left in the buffer */
+				return PREPARE_DELTA_OK;
+			}
+			/* processing new block */
 			blk_b4_match_start = src->src_delta.buf.offset;
 			blk_b4_match_end = blk_b4_match_start;
 			checking_match_start = blk_b4_match_end;
 			checking_match_end = checking_match_start + block_sz;
-			if(checking_match_end > src->src_delta.buf.length) {
-				/* less than one block left in the buffer */
-				return PREPARE_DELTA_OK;
-			}
+			/* re-calculate the rolling checksum */
+			rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
 		}else {
 			/* no match found, just pack the unmatched delta
 			 * after then, return PREPARE_DELTA_OK */
@@ -619,7 +627,7 @@ pack_delta:
 	}
 	/* impossible */
 	printf("Something is wrong if you see this...........................\n");
-	return PREPARE_DELTA_OK;
+	return PREPARE_DELTA_ERR;
 }
 
 
@@ -729,7 +737,7 @@ int main(int argc,char *argv[])
 				/* set to next stage */
 				src.state = SRC_CALCULATE_DELTA;
 			//	/*-------------------------------------------------------------------- test  ---------------*/
-				hash_analysis(src.hashtable);
+//				hash_analysis(src.hashtable);
 			//	goto clean_up;
 			//	/*-------------------------------------------------------------------- test  ---------------*/
 				break;
@@ -740,8 +748,8 @@ int main(int argc,char *argv[])
 				{
 					int i = prepare_delta(&src);
 					if(i == PREPARE_DELTA_OK) {
-						printf("prepare_delta ok...................\n");
-					//	printf("%s\n",src.buf);
+						printf("prepare_delta ok...................\nin the buf -- \n");
+						printf("%s\n",src.buf);
 						goto clean_up;	// for test
 						/* set to SRC_SEND_DELTA */
 						src.state = SRC_SEND_DELTA;
