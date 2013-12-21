@@ -70,7 +70,7 @@ void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
 #define RZYNC_BUF_SIZE	(1<<14)	// 16KB for client buffer
 #define RZYNC_DETLTA_BUF_SIZE	(1<<14)	// 16KB for src file buffer
-#define TMP_FILE_NAME_LEN	33
+#define TMP_FILE_NAME_LEN	(RZYNC_MAX_NAME_LENGTH+4)
 /* ----------------- src side struct ------------------ */
 typedef struct {
 	char filename[RZYNC_MAX_NAME_LENGTH];	
@@ -87,7 +87,7 @@ typedef struct {
 	/* src delta */
 	struct {
 		unsigned long long offset;	// bytes already read from file
-		checksum_t chksm;			// checksum
+//		checksum_t chksm;			// checksum
 		struct {
 			unsigned int offset;	// current offset in buf
 			unsigned int length;	// total length in buf
@@ -120,7 +120,7 @@ typedef struct {
 		char tmp_filename[TMP_FILE_NAME_LEN];
 		unsigned long long bytes_recvd;
 	} dst_sync_file;
-	int dstfd;	// the file to be written
+//	int dstfd;	// the file to be written
 	struct event ev_read;
 	struct event ev_write;
 	int sockfd;	// socket to read and write

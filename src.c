@@ -42,13 +42,16 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 	src->offset = 0;
 	src->length = 0;
 	src->hashtable = NULL;
+	src->checksums = NULL;
 	return INIT_RZYNC_SRC_OK;
 }
 
 void src_cleanup(rzync_src_t *src)
 {
 	printf("src_cleanup called................\n");
-	close(src->filefd);
+	if(src->filefd > 0) {
+		close(src->filefd);
+	}
 	close(src->sockfd);
 	checksum_hashtable_destory(src->hashtable);
 	src->hashtable = NULL;
@@ -155,7 +158,7 @@ int prepare_receive_checksums(rzync_src_t *src)
 
 	/* make a hash table for the checksums */
 	unsigned int hash_bits = choose_hash_bits(src->checksum_header.block_nr);
-	printf("hash_bits -- %u hash_nr -- %u\n",hash_bits,(1<<hash_bits));
+//	printf("hash_bits -- %u hash_nr -- %u\n",hash_bits,(1<<hash_bits));
 	src->hashtable = checksum_hashtable_init(hash_bits);
 	if(!src->hashtable) {
 		return PREPARE_RECV_CHCKSMS_ERR;
@@ -285,6 +288,7 @@ void hash_analysis(checksum_hashtable_t *ht)
 
 enum {
 	RECEIVE_CHCKSMS_OK = 0,
+	RECEIVE_CHCKSMS_ALL_RECEIVED,
 	RECEIVE_CHCKSMS_ERR
 };
 #define CHKSMS_EACH_BUF_SRC	(RZYNC_BUF_SIZE/RZYNC_CHECKSUM_SIZE)
@@ -294,13 +298,12 @@ int receive_checksums(rzync_src_t *src)
 {
 	if(src->checksum_recvd == src->checksum_header.block_nr) {
 		/* all checksums recved */
-		src->state = SRC_CHKSM_ALL_RECEIVED;
-		return RECEIVE_CHCKSMS_OK;
+		return RECEIVE_CHCKSMS_ALL_RECEIVED;
 	}
 	unsigned int chksm_left = src->checksum_header.block_nr - src->checksum_recvd;
 	/* how many checksums to recv in this loop */
 	unsigned int chksm_nr = CHKSMS_EACH_BUF_SRC<chksm_left?CHKSMS_EACH_BUF_SRC:chksm_left;
-	printf("checksums left -- %u CHKSMS_EACH_BUF_SRC -- %u -- chksm_nr -- %u\n",chksm_left,CHKSMS_EACH_BUF_SRC,chksm_nr);
+//	printf("checksums left -- %u CHKSMS_EACH_BUF_SRC -- %u -- chksm_nr -- %u\n",chksm_left,CHKSMS_EACH_BUF_SRC,chksm_nr);
 	unsigned int bytes_nr = chksm_nr * RZYNC_CHECKSUM_SIZE;
 	/* clear buf */
 	src->length = 0;
@@ -359,7 +362,7 @@ void prepare_send_delta(rzync_src_t *src)
 {
 	/* bytes already read from file */
 	src->src_delta.offset = 0;
-	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
+//	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
 	/* clear file buf */
 	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
 	memset(src->src_delta.buf.buf,0,RZYNC_DETLTA_BUF_SIZE);
@@ -380,7 +383,7 @@ int prepare_delta(rzync_src_t *src)
 	char *file_buf = src->src_delta.buf.buf;
 	unsigned int in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
-	printf("in_buf_not_processed -- %u\n",in_buf_not_processed);
+//	printf("in_buf_not_processed -- %u\n",in_buf_not_processed);
 	assert(in_buf_not_processed >= 0);
 	if(in_buf_not_processed >= block_sz) {
 		/* enough data to process,
@@ -415,7 +418,7 @@ int prepare_delta(rzync_src_t *src)
 	/* read more from file */
 	unsigned long long bytes_in_file_not_processed = 
 		src->size - src->src_delta.offset;
-	printf("bytes_in_file_not_processed -- %llu\n",bytes_in_file_not_processed);
+//	printf("bytes_in_file_not_processed -- %llu\n",bytes_in_file_not_processed);
 	if(bytes_in_file_not_processed == 0) {
 		/* no more data to read from file,
 		 * calculate from the data currently in buffer */
@@ -424,10 +427,10 @@ int prepare_delta(rzync_src_t *src)
 	assert(bytes_in_file_not_processed > 0);
 	/* bytes_in_file_not_processed > 0 */
 	unsigned int buf_capcity = RZYNC_DETLTA_BUF_SIZE - src->src_delta.buf.length;
-	printf("buf_capcity -- %u\n",buf_capcity);
+//	printf("buf_capcity -- %u\n",buf_capcity);
 	unsigned int to_read = 
 		buf_capcity<bytes_in_file_not_processed?buf_capcity:bytes_in_file_not_processed;
-	printf("to_read -- %u\n",to_read);
+//	printf("to_read -- %u\n",to_read);
 	int already_read = 0;
 	/* lseek to the right position */
 //	lseek(src->filefd,src->src_delta.offset,SEEK_SET);
@@ -447,15 +450,15 @@ int prepare_delta(rzync_src_t *src)
 	/* update some state */
 	src->src_delta.offset += already_read;
 	src->src_delta.buf.length += already_read;
-	printf("buf.length -- %u\n",src->src_delta.buf.length);
-	printf("file.offset -- %llu\n",src->src_delta.offset);
+//	printf("buf.length -- %u\n",src->src_delta.buf.length);
+//	printf("file.offset -- %llu\n",src->src_delta.offset);
 calculate_delta:
 	in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
-	printf("currently in_buf_not_processed -- %u\n",in_buf_not_processed);
+//	printf("currently in_buf_not_processed -- %u\n",in_buf_not_processed);
 	if(in_buf_not_processed == 0) {
 		/* NO MORE DATA TO PROCESS */
-		printf("no more data to process....................\n");
+//		printf("no more data to process....................\n");
 		return PREPARE_DELTA_NO_MORE_TO_SEND;
 	}
 	assert(in_buf_not_processed > 0);
@@ -463,7 +466,7 @@ calculate_delta:
 	memset(src->buf,0,RZYNC_BUF_SIZE);
 	src->length = src->offset = 0;
 	if(in_buf_not_processed < block_sz) {
-		printf("in_buf_not_processed < block_sz...................\n");
+//		printf("in_buf_not_processed < block_sz...................\n");
 		/* the last block to process, no need to calculate */
 		int delta_header_len =	snprintf(src->buf+src->length,
 				RZYNC_BUF_SIZE-src->length,
@@ -477,7 +480,7 @@ calculate_delta:
 		src->src_delta.buf.offset = src->src_delta.buf.length;
 		return PREPARE_DELTA_OK;
 	}
-	printf("in_buf_not_processed > block_sz.......................\n");
+//	printf("in_buf_not_processed > block_sz.......................\n");
 	/* the real challenge comes here... */
 	/* the block before the matched one */
 	unsigned int blk_b4_match_start = src->src_delta.buf.offset;
@@ -490,8 +493,8 @@ calculate_delta:
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
 	/* try to pack the bytes in file buffer into the socket buffer */
 	while(1) {
-		printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
-				blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
+//		printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
+//				blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
 		int match_found = 0;	// initialized to 0 as not_found
 		/* try to find a matched block in the file buffer */
 		checksum_t *chksm = hash_search(src->hashtable,rcksm.rolling_checksum);
@@ -507,14 +510,14 @@ calculate_delta:
 			if(memcmp(md5,chksm->md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
 				/* matched block found */
 				match_found = 1;
-				printf("match found.............................\n");
+//				printf("match found.............................\n");
 				goto pack_delta;
 			} else {
 				goto one_byte_forward;
 			}
 		}
 one_byte_forward:
-		printf("need one byte forward.....................\n");
+//		printf("need one byte forward.....................\n");
 		/* is there still some bytes for us to move forward? */
 		if(checking_match_end == src->src_delta.buf.length) {
 			/* cannot move forward 
@@ -531,7 +534,7 @@ one_byte_forward:
 		assert(rcksm.rolling_checksum == direct_calculated_rcksm.rolling_checksum);
 		continue;
 pack_delta:
-		printf("pack delta....................\n");
+//		printf("pack delta....................\n");
 		/* We get here for two possible reasons:
 		 * 1) A match is found, pack the unmatched(if there is one..)
 		 * and the matched block into the socket buffer, update some 
@@ -737,10 +740,16 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_CHKSM_HEADER_RECEIVED:
-				printf("------------------- SRC_CHKSM_HEADER_RECEIVED -------------------\n");
+				//			printf("------------------- SRC_CHKSM_HEADER_RECEIVED -------------------\n");
 				/* recv checksums */
-				if(receive_checksums(&src) == RECEIVE_CHCKSMS_ERR) {
-					goto clean_up;
+				{
+					int i = receive_checksums(&src);
+					if(i == RECEIVE_CHCKSMS_ERR) {
+						goto clean_up;
+					} 
+					if(i == RECEIVE_CHCKSMS_ALL_RECEIVED) {
+						src.state = SRC_CHKSM_ALL_RECEIVED;
+					}
 				}
 				break;
 			case SRC_CHKSM_ALL_RECEIVED:
@@ -751,14 +760,13 @@ int main(int argc,char *argv[])
 				src.state = SRC_CALCULATE_DELTA;
 				break;
 			case SRC_CALCULATE_DELTA:
-				printf("------------------- SRC_CALCULATE_DELTA -------------------\n");
+			//	printf("------------------- SRC_CALCULATE_DELTA -------------------\n");
 				/* process the file in the buffer 
 				 * calculate the delta data
 				 * pack the result to the buffer */
 				{
 					int i = prepare_delta(&src);
 					if(i == PREPARE_DELTA_OK) {
-						printf("prepare_delta ok...................\nin the buf -- \n%s\n",src.buf);
 						/* set to SRC_SEND_DELTA */
 						src.state = SRC_SEND_DELTA;
 					}else if(i == PREPARE_DELTA_NO_MORE_TO_SEND) {
@@ -776,7 +784,7 @@ int main(int argc,char *argv[])
 				{
 					int i = send_src_buf(&src);
 					if(i == SEND_SRC_BUF_OK) {
-						printf("send buf ok, go to calculate delta...............\n");
+					//	printf("send buf ok, go to calculate delta...............\n");
 						src.state = SRC_CALCULATE_DELTA;
 					} else if(i == SEND_SRC_BUF_ERR) {
 						goto clean_up;

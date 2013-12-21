@@ -2,18 +2,18 @@
 #include "util.h"
 
 static int g_continue_flag = 1; // continue flag, default set to 1
-struct event_base *ev_base = NULL;	// initialize to NULL,will be set on start
-rzyncdst_freelist_t * free_list = NULL;
+static struct event_base *ev_base = NULL;
+static rzyncdst_freelist_t * free_list = NULL;
 
 void rzyncdst_ins_cleanup(rzync_dst_t *ins)
 {
 	printf("cleanup called................\n");
 	close(ins->sockfd);
 	/* close file descriptor according its state */
-	if(ins->state >= DST_CHKSM_HEADER_SENT) {
+	if(ins->dst_local_file.fd > 0) {
 		close(ins->dst_local_file.fd);
 	}
-	if(ins->state >= DST_CHKSM_ALL_SENT) {
+	if(ins->dst_sync_file.fd > 0) {
 		close(ins->dst_sync_file.fd);
 	}
 	memset(ins,0,sizeof(rzync_dst_t));
@@ -25,7 +25,8 @@ enum {
 	ON_READ_RECV_SYNC_REQ_NOT_COMPLETE,
 	ON_READ_RECV_SYNC_REQ_ERR
 };
-/* on_read_recv_sync_req : read the sync req */
+/* on_read_recv_sync_req : 
+ * receive and parse the req header */
 int on_read_recv_sync_req(rzync_dst_t *ins)
 {
 	int n = read(ins->sockfd,
@@ -119,7 +120,7 @@ enum {
 	PREPARE_SEND_CHECKSUMS_NOT_OK
 };
 /* @prepare_send_checksums 
- * 1) open file
+ * 1) open local file
  * 2) lseek to start
  * 3) set checksum_sent to 0 */
 inline int prepare_send_checksums(rzync_dst_t *ins)
@@ -146,7 +147,6 @@ enum {
 int prepare_receive_delta_file(rzync_dst_t *ins)
 {
 	memset(ins->dst_sync_file.tmp_filename,0,TMP_FILE_NAME_LEN);
-//	md5s_of_str(ins->filename,RZYNC_MAX_NAME_LENGTH,ins->dst_sync_file.tmp_filename);
 	snprintf(ins->dst_sync_file.tmp_filename,
 			TMP_FILE_NAME_LEN,
 			"%s.zync",ins->filename);
@@ -551,6 +551,19 @@ void on_read(int sock,short event,void *arg)
 				i = parse_delta_file(ins);
 				if(i == PARSE_DELTA_FILE_READ_MORE) {
 					goto re_add_ev_read;
+				} else if(i == PARSE_DELTA_FILE_ALL_DONE){
+					/* calculate md5 of file for the final checking */
+					char sync_md5[RZYNC_MD5_CHECK_SUM_BITS+1];
+					memset(sync_md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
+					if(md5s_of_file(ins->dst_sync_file.tmp_filename,sync_md5) != 0) {
+						fprintf(stderr,"Final calculating md5 fail..\n");
+						goto clean_up;
+					}
+					if(strncmp(ins->md5,sync_md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
+						printf("Synchronization done successfully!\n");
+					} else {
+						fprintf(stderr,"Final md5 checking fail..\n");
+					}
 				}
 				/* goto clean_up on error or ALL_DONE */
 				goto clean_up;
@@ -565,14 +578,12 @@ void on_read(int sock,short event,void *arg)
 	}
 	return;
 re_add_ev_read:
-	printf("on_read -------------------------------- re-add ev_read...............\n");
 	if(event_add(&ins->ev_read,NULL) != 0) {
 		fprintf(stderr,"event_add fail!\n");
 		goto clean_up;
 	}
 	return;
 re_add_ev_write:
-	printf("on_write -------------------- re_add ev_write -------------------\n");
 	if(event_add(&ins->ev_write,NULL) != 0) {
 		fprintf(stderr,"ev_write add fail!\n");
 		goto clean_up;
@@ -614,6 +625,8 @@ void on_conenct(int sock,short event,void *arg)
 	ins->sockfd = connfd;
 	ins->state = DST_INIT;	// set state to DST_INIT 
 	ins->length = ins->offset = 0;
+	/* file descriptor initialized to -1 */
+	ins->dst_local_file.fd = ins->dst_sync_file.fd = -1;
 	
 	/* set read event */
 	event_set(&ins->ev_read,ins->sockfd,EV_READ,on_read,(void*)ins);
