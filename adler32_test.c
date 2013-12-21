@@ -1,5 +1,6 @@
 #include "rzync.h"
 
+#define ROLLING_EQUAL(a,b)	(a.rolling_checksum == b.rolling_checksum)
 
 int main()
 {

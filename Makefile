@@ -4,7 +4,7 @@ BINS = adler32 src dst md_of_file
 .PHONY : all
 all : adler32
 
-adler32 : adler32_test.o
+adler32 : adler32_test.o checksum.o
 	gcc $? $(CC_FLAGS) $@
 
 .PHONY : cs
