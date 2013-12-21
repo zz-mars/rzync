@@ -7,11 +7,13 @@ my version of rsync,only for test
 This is a very simple and naiive implementation of file synchronization tool.
 ONLY FOR TEST AND NO WARRANT AT ALL.
 
-Usage
+Compile from src
 =====
 
 1) Download the src
 2) make
+
+Dependency : libevent
 
 Two BINs : rzdst & rzsrc
 ====
