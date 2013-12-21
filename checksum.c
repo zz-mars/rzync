@@ -1,9 +1,6 @@
 #include "rzync.h"
 
-/* ----------------- rolling hash implementation ------------------ */
-/* weird bug for ADLER_MOD = 65521 */
-#define ADLER_MOD			(1<<16)
-//#define ADLER_MOD			65521
+#define ADLER_MOD			65521
 
 /* Implementation of adler32 algorithms */
 /* Algorithms specification :
@@ -19,18 +16,14 @@
 /* direct calculation of adler32 */
 rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 {
-	/* define A&B to be long long to avoid overflow */
-	unsigned long long A = 1;
-	unsigned long long B = n;
+	rolling_checksum_t rcksm;
+	rcksm.rolling_AB.A = 1;
+	rcksm.rolling_AB.B = 0;
 	int i;
 	for(i=0;i<n;i++) {
-		unsigned char ch = buf[i];
-		A += ch;
-		B += (ch * (n - i));
+		rcksm.rolling_AB.A = ( rcksm.rolling_AB.A + buf[i] ) % ADLER_MOD;
+		rcksm.rolling_AB.B = ( rcksm.rolling_AB.B + rcksm.rolling_AB.A ) % ADLER_MOD;
 	}
-	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.A = A%ADLER_MOD;
-	rcksm.rolling_AB.B = B%ADLER_MOD;
 	return rcksm;
 }
 

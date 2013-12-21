@@ -528,10 +528,11 @@ one_byte_forward:
 		unsigned char old_ch = file_buf[checking_match_start++];
 		unsigned char new_ch = file_buf[++checking_match_end];
 		blk_b4_match_end = checking_match_start;
-		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
-		/* test rolling checksum */
-		rolling_checksum_t direct_calculated_rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
-		assert(rcksm.rolling_checksum == direct_calculated_rcksm.rolling_checksum);
+//		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
+//		/* test rolling checksum */
+//		rolling_checksum_t direct_calculated_rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
+//		assert(rcksm.rolling_checksum == direct_calculated_rcksm.rolling_checksum);
+		rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
 		continue;
 pack_delta:
 //		printf("pack delta....................\n");
