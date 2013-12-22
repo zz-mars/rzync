@@ -24,7 +24,7 @@ rzdst : The receiver of synchronization which listens on a particular port.
 rzsrc : The sender of synchronization, run it with one parameter which is the 
 		file to be synchronized.
 
-How it wors?
+How does it work?
 =====
 
 1) The src side sends a sync request which consists of some basic information
