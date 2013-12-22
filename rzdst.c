@@ -47,6 +47,7 @@ int on_read_recv_sync_req(rzync_dst_t *ins)
 
 	/* when n > 0, update ins->length */
 	ins->length += n;
+	ins->statistics.total_recved += n;
 	if(ins->length < RZYNC_FILE_INFO_SIZE) {
 		/* request header not all received 
 		 * DO NOT CHANGE THE STATE NOW */
@@ -107,6 +108,7 @@ int send_dst_buf(rzync_dst_t *ins)
 		/* connection closed by peer */
 		return SEND_DST_BUF_ERR;
 	}
+	ins->statistics.total_sent += n;
 	ins->offset += n;
 	if(ins->offset == ins->length) {
 		return SEND_DST_BUF_OK;
@@ -361,6 +363,7 @@ int on_read_receive_delta_file(rzync_dst_t *ins)
 		/* connection closed by peer */
 		return ON_READ_RECV_DELTA_FILE_NEED_CLEANUP;
 	}
+	ins->statistics.total_recved += n;
 	ins->length += n;
 	return ON_READ_RECV_DELTA_FILE_OK;
 }
@@ -552,6 +555,10 @@ void on_read(int sock,short event,void *arg)
 				if(i == PARSE_DELTA_FILE_READ_MORE) {
 					goto re_add_ev_read;
 				} else if(i == PARSE_DELTA_FILE_ALL_DONE){
+					/* All done, print the statistics */
+					printf("------------------- dst statistics -------------------\n"); 
+					printf("total_sent -- %llu\n",ins->statistics.total_sent);
+					printf("total_recved -- %llu\n",ins->statistics.total_recved);
 					/* calculate md5 of file for the final checking */
 					char sync_md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 					memset(sync_md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
@@ -627,6 +634,9 @@ void on_conenct(int sock,short event,void *arg)
 	ins->length = ins->offset = 0;
 	/* file descriptor initialized to -1 */
 	ins->dst_local_file.fd = ins->dst_sync_file.fd = -1;
+	/* statistics */
+	ins->statistics.total_sent = 0;
+	ins->statistics.total_recved = 0;
 	
 	/* set read event */
 	event_set(&ins->ev_read,ins->sockfd,EV_READ,on_read,(void*)ins);

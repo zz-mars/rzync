@@ -41,6 +41,9 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 	src->state = SRC_INIT;
 	src->offset = 0;
 	src->length = 0;
+	src->statistics.total_sent = 0;
+	src->statistics.total_recved = 0;
+	src->statistics.duplicated_block = 0;
 	src->hashtable = NULL;
 	src->checksums = NULL;
 	return INIT_RZYNC_SRC_OK;
@@ -99,6 +102,7 @@ int send_src_buf(rzync_src_t *src)
 		return SEND_SRC_BUF_ERR;
 	}
 	src->offset += n;
+	src->statistics.total_sent += n;
 	if(src->offset == src->length) {
 		return SEND_SRC_BUF_OK;
 	}
@@ -195,6 +199,7 @@ int receive_checksum_header(rzync_src_t *src)
 		return RECV_CHCKSM_H_ERR;
 	}
 	src->length += n;
+	src->statistics.total_recved += n;
 	if(src->length == RZYNC_CHECKSUM_HEADER_SIZE) {
 		/* parse checksum header */
 		if(parse_checksum_header(src) == PARSE_CHECKSUM_HEADER_ERR) {
@@ -321,6 +326,7 @@ int receive_checksums(rzync_src_t *src)
 			/* connection closed */
 			return RECEIVE_CHCKSMS_ERR;
 		}
+		src->statistics.total_recved += n;
 		src->length += n;
 	}
 	/* parse these checksums */
@@ -510,6 +516,7 @@ calculate_delta:
 			if(memcmp(md5,chksm->md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
 				/* matched block found */
 				match_found = 1;
+				src->statistics.duplicated_block++;
 //				printf("match found.............................\n");
 				goto pack_delta;
 			} else {
@@ -696,7 +703,6 @@ int main(int argc,char *argv[])
 	while(1) {
 		switch(src.state) {
 			case SRC_INIT:
-				printf("------------------- SRC_INIT -------------------\n");
 				{
 					/* send sync req in the buffer */
 					int i = send_src_buf(&src);
@@ -716,7 +722,6 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_REQ_SENT:
-				printf("------------------- SRC_REQ_SENT -------------------\n");
 				{
 					int i = receive_checksum_header(&src);
 					if(i == RECV_CHCKSM_H_OK) {
@@ -741,7 +746,6 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_CHKSM_HEADER_RECEIVED:
-				//			printf("------------------- SRC_CHKSM_HEADER_RECEIVED -------------------\n");
 				/* recv checksums */
 				{
 					int i = receive_checksums(&src);
@@ -754,7 +758,6 @@ int main(int argc,char *argv[])
 				}
 				break;
 			case SRC_CHKSM_ALL_RECEIVED:
-				printf("------------------- SRC_CHKSM_ALL_RECEIVED -------------------\n");
 				/* When all checksums recved, prepare for delta file */
 				prepare_send_delta(&src);
 				/* set to next stage */
@@ -773,7 +776,6 @@ int main(int argc,char *argv[])
 					}else if(i == PREPARE_DELTA_NO_MORE_TO_SEND) {
 						/* set to SRC_DELTA_FILE_DONE 
 						 * since all deltas have been sent */
-						printf("delta ;; no more to send..........................\n");
 						src.state = SRC_DELTA_FILE_DONE;
 					}else {
 						goto clean_up;
@@ -794,6 +796,11 @@ int main(int argc,char *argv[])
 				break;
 			case SRC_DELTA_FILE_DONE:
 				/* Done */
+				printf("src send delta file done.\n");
+				printf("-------------------- src statistics --------------------\n");
+				printf("total bytes received -- %llu\n",src.statistics.total_recved);
+				printf("total bytes sent -- %llu\n",src.statistics.total_sent);
+				printf("total bytes duplicated blocks -- %llu\n",src.statistics.duplicated_block);
 				goto clean_up;
 			case SRC_DONE:
 				/* undefined */

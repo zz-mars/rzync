@@ -95,6 +95,12 @@ typedef struct {
 		} buf;
 	} src_delta;
 	unsigned int checksum_recvd;
+	/* collect the statistics */
+	struct {
+		unsigned long long total_sent;
+		unsigned long long total_recved;
+		unsigned int duplicated_block;
+	} statistics;
 	/* for building checksum hash table */
 	checksum_t *checksums;	// checksums
 	checksum_hashtable_t *hashtable;
@@ -120,7 +126,11 @@ typedef struct {
 		char tmp_filename[TMP_FILE_NAME_LEN];
 		unsigned long long bytes_recvd;
 	} dst_sync_file;
-//	int dstfd;	// the file to be written
+	/* collect the statistics */
+	struct {
+		unsigned long long total_sent;
+		unsigned long long total_recved;
+	} statistics;
 	struct event ev_read;
 	struct event ev_write;
 	int sockfd;	// socket to read and write
