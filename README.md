@@ -10,8 +10,9 @@ ONLY FOR TEST AND NO WARRANT AT ALL.
 Compile from src
 =====
 
-1) Download the src
-2) make
+1) git clone https://github.com/zz-mars/rzync.git
+2) cd rzync
+3) make
 
 Dependency : libevent
 
