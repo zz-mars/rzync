@@ -493,6 +493,7 @@ need_read_more:
 			memcpy(tmp_buf,ins->buf+ins->offset,now_in_buf);
 			memset(ins->buf,0,RZYNC_BUF_SIZE);
 			memcpy(ins->buf,tmp_buf,now_in_buf);
+			free(tmp_buf);
 		}
 		ins->length = now_in_buf;
 		ins->offset = 0;
