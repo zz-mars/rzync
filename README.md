@@ -11,7 +11,9 @@ Compile from src
 =====
 
 1) git clone https://github.com/zz-mars/rzync.git
+
 2) cd rzync
+
 3) make
 
 Dependency : libevent
