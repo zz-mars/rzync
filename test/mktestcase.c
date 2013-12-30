@@ -7,47 +7,54 @@
 #include <sys/stat.h>
 #include <errno.h>
 
-#define TEST_CASE_DIR	"Test_case.dir"
-static unsigned char *magic_s = "/* for test zzzzzzzzzzzzz */";
-static unsigned int magic_s_len;
+#define MAGIC_S_LEN	64
+static unsigned char magic_s[MAGIC_S_LEN] = "/* for test zzzzzzzzzzzzz */";
+
 #define BUFSZ	BUFSIZ
 static unsigned char buf[BUFSZ];
+
+#define FILE_NAME_BUFSZ	1024
+static unsigned char file_name_buf[FILE_NAME_BUFSZ];
 
 /* 1) write MAGIC_BYTES to the start and end of given file
  * 2) modify file content at 2 random places 
  * 3) add content in one random place */
-
-int mktestcase(char *filename)
+/* modify the files in src_dir,
+ * put the modified files into dst_dir */
+int mktestcase(char *filename,char *src_dir,char *dst_dir)
 {
-	magic_s_len = strlen(magic_s);
-	struct stat stt;
-	if(stat(filename,&stt) != 0) {
-		perror("stat");
-		return 1;
-	}
-	unsigned long long size = stt.st_size;
-	if(access(TEST_CASE_DIR,F_OK) != 0) {
+	int ret = 1;
+	if(access(dst_dir,F_OK) != 0) {
 		if(errno != ENOENT) {
 			perror("access test case dir");
 			return 1;
 		}
-		if(mkdir(TEST_CASE_DIR,0770) != 0) {
+		if(mkdir(dst_dir,0770) != 0) {
 			perror("mkdir");
 			return 1;
 		}
 	}
-	unsigned char test_case_file[256];
-	memset(test_case_file,0,256);
-	snprintf(test_case_file,256,"%s/%s",TEST_CASE_DIR,filename);
 
-	int fd = open(filename,O_RDONLY);
+	memset(file_name_buf,0,FILE_NAME_BUFSZ);
+	snprintf(file_name_buf,FILE_NAME_BUFSZ,"%s/%s",src_dir,filename);
+	int fd = open(file_name_buf,O_RDONLY);
 	if(fd < 0) {
+		perror("open fd");
 		return 1;
 	}
 
-	int ret = 1;
-	int tfd = open(test_case_file,O_CREAT | O_TRUNC | O_WRONLY,0660);
+	struct stat stt;
+	if(fstat(fd,&stt) != 0) {
+		perror("stat");
+		return 1;
+	}
+	unsigned long long size = stt.st_size;
+
+	memset(file_name_buf,0,FILE_NAME_BUFSZ);
+	snprintf(file_name_buf,FILE_NAME_BUFSZ,"%s/%s",dst_dir,filename);
+	int tfd = open(file_name_buf,O_CREAT | O_TRUNC | O_WRONLY,0660);
 	if(tfd < 0) {
+		perror("open tfd");
 		goto close_fd;
 	}
 
@@ -89,7 +96,7 @@ int mktestcase(char *filename)
 			bytes_cpd += to_read;
 		}
 		printf("add magic_s to pos -- %llu\n",add_pos[i]);
-		if(write(tfd,magic_s,magic_s_len) != magic_s_len) {
+		if(write(tfd,magic_s,MAGIC_S_LEN) != MAGIC_S_LEN) {
 			perror("write");
 			goto close_tfd;
 		}
@@ -110,7 +117,7 @@ int mktestcase(char *filename)
 	for(i=0;i<3;i++) {
 		lseek(tfd,modification_pos[i],SEEK_SET);
 		printf("modify @%llu................\n",modification_pos[i]);
-		if(write(tfd,magic_s,magic_s_len) != magic_s_len) {
+		if(write(tfd,magic_s,MAGIC_S_LEN) != MAGIC_S_LEN) {
 			perror("write");
 			goto close_tfd;
 		}
@@ -126,13 +133,15 @@ close_fd:
 
 int main(int argc, char *argv[])
 {
-	if(argc != 2) {
+	if(argc != 4) {
 		fprintf(stderr,"invalid argument!\n");
 		exit(1);
 	}
 
 	char *filename = argv[1];
-	if(mktestcase(filename)) {
+	char *src_dir = argv[2];
+	char *dst_dir = argv[3];
+	if(mktestcase(filename,src_dir,dst_dir)) {
 		fprintf(stderr,"mktestcase fail @%s\n",filename);
 		exit(1);
 	}
