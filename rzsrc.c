@@ -51,7 +51,7 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 
 void src_cleanup(rzync_src_t *src)
 {
-	printf("src_cleanup called................\n");
+//	printf("src_cleanup called................\n");
 	if(src->filefd > 0) {
 		close(src->filefd);
 	}
@@ -125,9 +125,9 @@ int parse_checksum_header(rzync_src_t *src)
 	if(src->checksum_header.block_sz == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_HEADER_ERR;
 	}
-	printf("checksumheader -- block_nr %u -- block_sz %u\n",
-			src->checksum_header.block_nr,
-			src->checksum_header.block_sz);
+//	printf("checksumheader -- block_nr %u -- block_sz %u\n",
+//			src->checksum_header.block_nr,
+//			src->checksum_header.block_sz);
 	return PARSE_CHECKSUM_HEADER_OK;
 }
 
@@ -341,7 +341,7 @@ int receive_checksums(rzync_src_t *src)
 		memset(chksm,0,sizeof(checksum_t));
 		/* parse checksums */
 		if(parse_checksum(p,chksm) != PARSE_CHECKSUM_OK) {
-			printf("parse checksum fail...................\n");
+			fprintf(stderr,"parse checksum fail...................\n");
 			return RECEIVE_CHCKSMS_ERR;
 		}
 		assert(chksm->block_nr == block_nr);
@@ -796,11 +796,11 @@ int main(int argc,char *argv[])
 				break;
 			case SRC_DELTA_FILE_DONE:
 				/* Done */
-				printf("src send delta file done.\n");
-				printf("-------------------- src statistics --------------------\n");
-				printf("total bytes received -- %llu\n",src.statistics.total_recved);
-				printf("total bytes sent -- %llu\n",src.statistics.total_sent);
-				printf("total bytes duplicated blocks -- %llu\n",src.statistics.duplicated_block);
+//				printf("src send delta file done.\n");
+//				printf("-------------------- src statistics --------------------\n");
+				printf("total_bytes_received %llu\n",src.statistics.total_recved);
+				printf("total_bytes_sent %llu\n",src.statistics.total_sent);
+				printf("total_bytes_duplicated_blocks %llu\n",src.statistics.duplicated_block);
 				goto clean_up;
 			case SRC_DONE:
 				/* undefined */
