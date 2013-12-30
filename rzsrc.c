@@ -655,12 +655,12 @@ pack_delta:
 
 int main(int argc,char *argv[])
 {
-	if(argc != 2) {
-		fprintf(stderr,"please specify the file to be synced!\n");
+	if(argc != 3) {
+		fprintf(stderr,"Usage : ./rzsrc <dst_ip> <filename>\n");
 		return 1;
 	}
-
-	char *filename = argv[1];
+	char* dst_ip = argv[1];
+	char* filename = argv[2];
 	/* ELEMENTS WHICH WILL BE SET IN INITIALIZATION
 	 * @filename
 	 * @size
@@ -682,8 +682,8 @@ int main(int argc,char *argv[])
 
 	memset(&addr,0,addr_len);
 	addr.sin_family = AF_INET;
-//	inet_pton(AF_INET,ZZIP,(void*)&addr.sin_addr);
-	addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	inet_pton(AF_INET,dst_ip,(void*)&addr.sin_addr);
+//	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_port = htons(RZYNC_PORT);
 
 	src.sockfd = socket(AF_INET,SOCK_STREAM,0);
