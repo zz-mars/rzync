@@ -5,9 +5,9 @@ enum {
 	INIT_RZYNC_SRC_OK = 0,
 	INIT_RZYNC_SRC_ERR
 };
-int init_rzyncsrc(rzync_src_t *src,char *filename)
+int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename)
 {
-	/* set filename, size, mtime */
+	/* set filename */
 	memset(src,0,sizeof(rzync_src_t));
 	int filenamelen = strlen(filename);
 	if(filenamelen >= RZYNC_MAX_NAME_LENGTH) {
@@ -15,14 +15,22 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 		return INIT_RZYNC_SRC_ERR;
 	}
 	strncpy(src->filename,filename,filenamelen);
+	/* get the real file name */
+	char real_fn[TMP_FILE_NAME_LEN];
+	memset(real_fn,0,TMP_FILE_NAME_LEN);
+	snprintf(real_fn,TMP_FILE_NAME_LEN,
+			"%s/%s",dirname,filename);
+
+	printf("real file name : %s\n",real_fn);
 	/* set md5 */
-	if(md5s_of_file(src->filename,src->md5) != 0) {
+	if(md5s_of_file(real_fn,src->md5) != 0) {
+		fprintf(stderr,"md5 of file fail!\n");
 		return INIT_RZYNC_SRC_ERR;
 	}
 	src->md5[RZYNC_MD5_CHECK_SUM_BITS] = '\0';
 	/* file size */
 	struct stat stt;
-	if(stat(filename,&stt) != 0) {
+	if(stat(real_fn,&stt) != 0) {
 		perror("stat");
 		return INIT_RZYNC_SRC_ERR;
 	}
@@ -30,7 +38,7 @@ int init_rzyncsrc(rzync_src_t *src,char *filename)
 	/* modification time */
 	src->mtime = stt.st_mtime;
 	/* open local file */
-	src->filefd = open(filename,O_RDONLY);
+	src->filefd = open(real_fn,O_RDONLY);
 	if(src->filefd < 0) {
 		perror("open file");
 		return INIT_RZYNC_SRC_ERR;
@@ -655,12 +663,14 @@ pack_delta:
 
 int main(int argc,char *argv[])
 {
-	if(argc != 3) {
-		fprintf(stderr,"Usage : ./rzsrc <dst_ip> <filename>\n");
+	if(argc != 4) {
+		fprintf(stderr,"Usage : ./rzsrc <dst_ip> <dir_name> <file_name>\n");
 		return 1;
 	}
+	/* local dir is needed */
 	char* dst_ip = argv[1];
-	char* filename = argv[2];
+	char* dirname = argv[2];
+	char* filename = argv[3];
 	/* ELEMENTS WHICH WILL BE SET IN INITIALIZATION
 	 * @filename
 	 * @size
@@ -672,7 +682,7 @@ int main(int argc,char *argv[])
 	 * RETURN 1 ON ERROR
 	 * */
 	rzync_src_t src;
-	if(init_rzyncsrc(&src,filename)) {
+	if(init_rzyncsrc(&src,dirname,filename) != INIT_RZYNC_SRC_OK) {
 		return 1;
 	}
 	
