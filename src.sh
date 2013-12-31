@@ -23,8 +23,8 @@ DUP_BLKS=0
 
 for file in $@
 do
-	echo "$file"
-#	./rzsrc "$file" "$IP_ADDR"
+#	echo "$file"
+	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
 done
 
 exit 0
