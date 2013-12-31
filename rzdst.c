@@ -590,8 +590,8 @@ void on_read(int sock,short event,void *arg)
 				} else if(i == PARSE_DELTA_FILE_ALL_DONE){
 					/* All done, print the statistics */
 				//	printf("------------------- dst statistics -------------------\n"); 
-					printf("total_sent -- %llu\n",ins->statistics.total_sent);
-					printf("total_recved -- %llu\n",ins->statistics.total_recved);
+				//	printf("total_sent -- %llu\n",ins->statistics.total_sent);
+				//	printf("total_recved -- %llu\n",ins->statistics.total_recved);
 					/* calculate md5 of file for the final checking */
 					char sync_md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 					memset(sync_md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
@@ -600,7 +600,7 @@ void on_read(int sock,short event,void *arg)
 						goto clean_up;
 					}
 					if(strncmp(ins->md5,sync_md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
-					//	printf("Synchronization done successfully!\n");
+						printf("Synchronization succedded!\n");
 					} else {
 						fprintf(stderr,"Final md5 checking fail..\n");
 					}
