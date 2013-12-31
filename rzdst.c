@@ -333,7 +333,7 @@ re_add_ev_write:
 	}
 	return;
 clean_up:
-	printf("cleanup from on_write...........\n");
+//	printf("cleanup from on_write...........\n");
 	rzyncdst_ins_cleanup(ins);
 }
 
@@ -550,11 +550,11 @@ void on_read(int sock,short event,void *arg)
 					/* request received successfully 
 					 * PREPARE THE CHECKSUM HEADER AND
 					 * SET EV_WRITE */
-					printf("/* request parse ok, update to new state */\n");
-					printf("filename -- %s\n",ins->filename);
-					printf("size -- %llu\n",ins->size);
-					printf("mtime -- %llu\n",ins->mtime);
-					printf("md5 -- %s\n",ins->md5);
+				//	printf("/* request parse ok, update to new state */\n");
+				//	printf("filename -- %s\n",ins->filename);
+				//	printf("size -- %llu\n",ins->size);
+				//	printf("mtime -- %llu\n",ins->mtime);
+				//	printf("md5 -- %s\n",ins->md5);
 					/* update the state */
 					ins->state = DST_REQ_RECEIVED;
 					/* prepare the checksum header */
@@ -589,7 +589,7 @@ void on_read(int sock,short event,void *arg)
 					goto re_add_ev_read;
 				} else if(i == PARSE_DELTA_FILE_ALL_DONE){
 					/* All done, print the statistics */
-					printf("------------------- dst statistics -------------------\n"); 
+				//	printf("------------------- dst statistics -------------------\n"); 
 					printf("total_sent -- %llu\n",ins->statistics.total_sent);
 					printf("total_recved -- %llu\n",ins->statistics.total_recved);
 					/* calculate md5 of file for the final checking */
@@ -600,7 +600,7 @@ void on_read(int sock,short event,void *arg)
 						goto clean_up;
 					}
 					if(strncmp(ins->md5,sync_md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
-						printf("Synchronization done successfully!\n");
+					//	printf("Synchronization done successfully!\n");
 					} else {
 						fprintf(stderr,"Final md5 checking fail..\n");
 					}
@@ -630,7 +630,7 @@ re_add_ev_write:
 	}
 	return;
 clean_up:
-	printf("cleanup from on_read.................\n");
+//	printf("cleanup from on_read.................\n");
 	rzyncdst_ins_cleanup(ins);
 }
 
@@ -690,7 +690,7 @@ void on_conenct(int sock,short event,void *arg)
 	}
 	return;
 clean_up:
-	printf("cleanup from on_conenct..................\n");
+//	printf("cleanup from on_conenct..................\n");
 	rzyncdst_ins_cleanup(ins);
 }
 
