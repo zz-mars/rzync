@@ -26,8 +26,9 @@ DUP_BLKS=0
 
 for file in $@
 do
-	echo "$file"
-#	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
+	echo "Syncing file : $file"
+	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
 done
 
 exit 0
+
