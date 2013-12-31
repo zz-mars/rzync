@@ -502,7 +502,7 @@ calculate_delta:
 	/* the block which is checked for match */
 	unsigned int checking_match_start = blk_b4_match_end;
 	unsigned int checking_match_end = checking_match_start + block_sz;
-	assert(checking_match_end < src->src_delta.buf.length);
+	assert(checking_match_end <= src->src_delta.buf.length);
 	/* calculate the rolling checksum of the first block */
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
 	/* try to pack the bytes in file buffer into the socket buffer */
@@ -574,7 +574,7 @@ pack_delta:
 		 *  more than a total file_buf as delta data. Actually, the most
 		 *  number of bytes we will send as delta data is
 		 *
-		 *		RZYNC_DETLTA_BUF_SIZE - RZYNC_BLOCK_SIZE + 1
+		 *		RZYNC_DETLTA_BUF_SIZE - block_sz + 1
 		 *
 		 *  which is the worst case when no matched block is found in 
 		 *  the whole buffer.

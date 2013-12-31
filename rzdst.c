@@ -1,6 +1,9 @@
 #include "rzync.h"
 #include "util.h"
 
+/* set default block size to 4KB */
+static unsigned int dst_block_sz = RZYNC_BLOCK_SIZE;
+
 // the original directory
 #define RZYNC_ORIGIN_DIR	"rz_origin"		
 // the newly synced file will be put into this directory
@@ -195,6 +198,11 @@ int prepare_checksums(rzync_dst_t *ins)
 		return PREPARE_CHECKSUMS_NO_MORE_TO_SEND;
 	}
 
+	char* fbuf = malloc(dst_block_sz);
+	if(!fbuf) {
+		return PREPARE_CHECKSUMS_ERR;
+	}
+
 	int how_many_to_send_this_time; 
 	if(CHECKSUMS_NR_IN_TOTAL_BUF < checksums_left) {
 		/* most of the cases */
@@ -210,12 +218,12 @@ int prepare_checksums(rzync_dst_t *ins)
 	/* calculate the checksums and pack them into the buffer */
 	for(i=0;i<how_many_to_send_this_time;i++) {
 		/* clear file buf */
-		char fbuf[RZYNC_BLOCK_SIZE];
-		memset(fbuf,0,RZYNC_BLOCK_SIZE);
+		memset(fbuf,0,dst_block_sz);
 	//	/* lseek to the right position */
-	//	lseek(ins->dst_local_file.fd,chksm.block_nr*RZYNC_BLOCK_SIZE,SEEK_SET);
-		if(read(ins->dst_local_file.fd,fbuf,RZYNC_BLOCK_SIZE) != RZYNC_BLOCK_SIZE) {
+	//	lseek(ins->dst_local_file.fd,chksm.block_nr*dst_block_sz,SEEK_SET);
+		if(read(ins->dst_local_file.fd,fbuf,dst_block_sz) != dst_block_sz) {
 			perror("read file");
+			free(fbuf);
 			return PREPARE_CHECKSUMS_ERR;
 		}
 		/* clear chksm */
@@ -224,9 +232,9 @@ int prepare_checksums(rzync_dst_t *ins)
 		/* set block nr */
 		chksm.block_nr = ins->dst_local_file.checksum_sent + i;
 		/* calculate rolling chcksm */
-		chksm.rcksm = adler32_direct(fbuf,RZYNC_BLOCK_SIZE);
+		chksm.rcksm = adler32_direct(fbuf,dst_block_sz);
 		/* calculate md5 */
-		md5s_of_str(fbuf,RZYNC_BLOCK_SIZE,chksm.md5);
+		md5s_of_str(fbuf,dst_block_sz,chksm.md5);
 		/* put into buffer */
 		snprintf(p,RZYNC_CHECKSUM_SIZE,"$%u\n$%u\n$%u\n$%s\n",
 				chksm.block_nr,
@@ -239,6 +247,7 @@ int prepare_checksums(rzync_dst_t *ins)
 	ins->offset = 0;
 	ins->length = how_many_to_send_this_time * RZYNC_CHECKSUM_SIZE;
 	ins->dst_local_file.checksum_sent += how_many_to_send_this_time;
+	free(fbuf);
 	return PREPARE_CHECKSUMS_OK;
 }
 
@@ -356,7 +365,7 @@ int on_read_prepare_checksum_header(rzync_dst_t *ins)
 		return ON_READ_PREPARE_CHECKUM_HEADER_ERR;
 	}
 
-	ins->dst_local_file.block_sz = RZYNC_BLOCK_SIZE;
+	ins->dst_local_file.block_sz = dst_block_sz;
 	struct stat stt;
 	unsigned long long file_sz = 
 		(fstat(ins->dst_local_file.fd,&stt) == 0)?stt.st_size:0;
@@ -453,11 +462,17 @@ int parse_delta_file(rzync_dst_t *ins)
 {
 	int local_fd = ins->dst_local_file.fd;
 	int sync_fd = ins->dst_sync_file.fd;
+	char* dup_buf = malloc(dst_block_sz);
+	if(!dup_buf) {
+		perror("malloc for block buf");
+		return PARSE_DELTA_FILE_ERR;
+	}
+	int ret = PARSE_DELTA_FILE_ERR;
 	while(1) {
 		delta_header_t dh;
 		int i = parse_delta_header(ins->buf,ins->offset,ins->length,&dh);
 		if(i == PARSE_DELTA_HEADER_ERR) {
-			return PARSE_DELTA_FILE_ERR;
+			goto free_dup_buf_and_ret;
 		}else if(i == PARSE_DELTA_HEADER_INCOMPLETE_HEADER) {
 			goto need_read_more;
 		}
@@ -467,18 +482,17 @@ int parse_delta_file(rzync_dst_t *ins)
 		/* parse header ok */
 		if(dh.flag == DELTA_DUP) {
 			/* dup block found */
-			char dup_buf[RZYNC_BLOCK_SIZE];
-			memset(dup_buf,0,RZYNC_BLOCK_SIZE);
+			memset(dup_buf,0,dst_block_sz);
 			/* find the right place to read */
-			lseek(local_fd,RZYNC_BLOCK_SIZE*dh.nr,SEEK_SET);
+			lseek(local_fd,dst_block_sz*dh.nr,SEEK_SET);
 			/* read one block */
-			int n = read(local_fd,dup_buf,RZYNC_BLOCK_SIZE);
-			if(n != RZYNC_BLOCK_SIZE) {
+			int n = read(local_fd,dup_buf,dst_block_sz);
+			if(n != dst_block_sz) {
 				perror("read one block from local file");
-				return PARSE_DELTA_FILE_ERR;
+				goto free_dup_buf_and_ret;
 			}
 			wbuf = dup_buf;
-			wbytes = RZYNC_BLOCK_SIZE;
+			wbytes = dst_block_sz;
 			offset_adjust = dh.header_length;
 		}else {
 			/* non-dup block */
@@ -494,22 +508,27 @@ int parse_delta_file(rzync_dst_t *ins)
 		/* write data to the dest file */
 		if(write(sync_fd,wbuf,wbytes) != wbytes) {
 			perror("write to sync file");
-			return PARSE_DELTA_FILE_ERR;
+			goto free_dup_buf_and_ret;
 		}
 		/* update the bytes_recvd */
 		ins->dst_sync_file.bytes_recvd += wbytes;
 		assert(ins->dst_sync_file.bytes_recvd <= ins->size);
 		if(ins->dst_sync_file.bytes_recvd == ins->size) {
-			return PARSE_DELTA_FILE_ALL_DONE;
+			ret = PARSE_DELTA_FILE_ALL_DONE;
+			goto free_dup_buf_and_ret;
 		}
 		/* update the buffer offset */
 		ins->offset += offset_adjust;
 		assert(ins->offset <= ins->length);
 		/* continue */
 	}
+free_dup_buf_and_ret:
+	free(dup_buf);
+	return ret;
 need_read_more:
 	/* move the data in the buffer to the very beginning of buffer
 	 * and return read more */
+	free(dup_buf);
 	{
 		int now_in_buf = ins->length - ins->offset;
 		assert(now_in_buf >= 0);
@@ -697,10 +716,34 @@ clean_up:
 
 int main(int argc,char *argv[])
 {
-	if(argc != 3) {
-		fprintf(stderr,"Usage : ./rzdst <origin_dir> <updated_dir>\n");
+	if(argc != 4) {
+		fprintf(stderr,"Usage : ./rzdst <origin_dir> <updated_dir> <block_sz in KB(<=16)>\n");
 		return 1;
 	}
+
+	unsigned char* blk_szp = argv[3];
+	unsigned int blk_kb = 0;
+	while(*blk_szp != '\0') {
+		unsigned char ch = *blk_szp++;
+		if(ch < '0' || ch > '9') {
+			fprintf(stderr,"Invalid block size!\n");
+			return 1;
+		}
+		blk_kb *= 10;
+		blk_kb += (ch-'0');
+	}
+
+	if(blk_kb == 0) {
+		fprintf(stderr,"Block size cannot be zero!\n");
+		return 1;
+	} else if(blk_kb > 16) {
+		fprintf(stderr,"Block size too big!\n");
+		return 1;
+	}
+
+	printf("dst block size : %u\n",blk_kb);
+	/* block size */
+	dst_block_sz = blk_kb*1024;
 
 	/* set the origin and updated dir */
 	origin_dir = argv[1];
