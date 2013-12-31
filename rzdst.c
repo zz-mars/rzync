@@ -1,6 +1,15 @@
 #include "rzync.h"
 #include "util.h"
 
+// the original directory
+#define RZYNC_ORIGIN_DIR	"rz_origin"		
+// the newly synced file will be put into this directory
+#define RZYNC_UPDATED_DIR	"rz_updated"
+
+/* set default value */
+static unsigned char* origin_dir = RZYNC_ORIGIN_DIR;
+static unsigned char* updated_dir = RZYNC_UPDATED_DIR;
+
 static int g_continue_flag = 1; // continue flag, default set to 1
 static struct event_base *ev_base = NULL;
 static rzyncdst_freelist_t * free_list = NULL;
@@ -117,25 +126,19 @@ int send_dst_buf(rzync_dst_t *ins)
 	return SEND_DST_BUF_NOT_COMPLETE;
 }
 
-enum {
-	PREPARE_SEND_CHECKSUMS_OK = 0,
-	PREPARE_SEND_CHECKSUMS_NOT_OK
-};
 /* @prepare_send_checksums 
- * 1) open local file
- * 2) lseek to start
- * 3) set checksum_sent to 0 */
-inline int prepare_send_checksums(rzync_dst_t *ins)
+ * 1) lseek to start
+ * 2) set checksum_sent to 0 */
+inline void prepare_send_checksums(rzync_dst_t *ins)
 {
 	/* open dst_local_file and set checksum_sent to 0 */
-	ins->dst_local_file.fd = open(ins->filename,O_RDONLY);
-	if(ins->dst_local_file.fd < 0) {
-		perror("open dst_local_file");
-		return PREPARE_SEND_CHECKSUMS_NOT_OK;
-	}
+//	ins->dst_local_file.fd = open(ins->filename,O_RDONLY);
+//	if(ins->dst_local_file.fd < 0) {
+//		perror("open dst_local_file");
+//		return PREPARE_SEND_CHECKSUMS_NOT_OK;
+//	}
 	lseek(ins->dst_local_file.fd,0,SEEK_SET);
 	ins->dst_local_file.checksum_sent = 0;	// initialize to 0
-	return PREPARE_SEND_CHECKSUMS_OK;
 }
 
 enum {
@@ -148,10 +151,21 @@ enum {
  * 4) clear the buffer */
 int prepare_receive_delta_file(rzync_dst_t *ins)
 {
+	if(access(updated_dir,F_OK) != 0) {
+		if(errno != ENOENT) {
+			perror("updated dir");
+			return PREPARE_RECEIVE_DELTA_FILE_ERR;
+		}
+		if(mkdir(updated_dir,0770) != 0) {
+			perror("mkdir");
+			return PREPARE_RECEIVE_DELTA_FILE_ERR;
+		}
+	}
+
 	memset(ins->dst_sync_file.tmp_filename,0,TMP_FILE_NAME_LEN);
 	snprintf(ins->dst_sync_file.tmp_filename,
 			TMP_FILE_NAME_LEN,
-			"%s.zync",ins->filename);
+			"%s/%s",updated_dir,ins->filename);
 	ins->dst_sync_file.fd = open(ins->dst_sync_file.tmp_filename,
 			O_CREAT | O_TRUNC | O_WRONLY,0660);
 	if(ins->dst_sync_file.fd < 0) {
@@ -248,9 +262,7 @@ void on_write(int sock,short event,void *arg)
 					 * 2) lseek to start
 					 * 3) set checksum_sent = 0 */
 					ins->state = DST_CHKSM_HEADER_SENT;
-					if(prepare_send_checksums(ins) == PREPARE_SEND_CHECKSUMS_NOT_OK) {
-						goto clean_up;
-					}
+					prepare_send_checksums(ins);
 					/* And then prepare the very first group of checksums */
 					int m = prepare_checksums(ins);
 					if( m == PREPARE_CHECKSUMS_OK) {
@@ -325,13 +337,29 @@ clean_up:
 	rzyncdst_ins_cleanup(ins);
 }
 
+enum {
+	ON_READ_PREPARE_CHECKUM_HEADER_OK = 0,
+	ON_READ_PREPARE_CHECKUM_HEADER_ERR
+};
 /* Prepare the checksum header in the buffer */
-void on_read_prepare_checksum_header(rzync_dst_t *ins)
+int on_read_prepare_checksum_header(rzync_dst_t *ins)
 {
+	/* the original file */
+	unsigned char tmp_filename[TMP_FILE_NAME_LEN];
+	memset(tmp_filename,0,TMP_FILE_NAME_LEN);
+	snprintf(tmp_filename,TMP_FILE_NAME_LEN,
+			"%s/%s",origin_dir,ins->filename);
+
+	ins->dst_local_file.fd = open(tmp_filename,O_RDONLY);
+	if(ins->dst_local_file.fd < 0) {
+		perror("open original file");
+		return ON_READ_PREPARE_CHECKUM_HEADER_ERR;
+	}
+
 	ins->dst_local_file.block_sz = RZYNC_BLOCK_SIZE;
 	struct stat stt;
 	unsigned long long file_sz = 
-		(stat(ins->filename,&stt) == 0)?stt.st_size:0;
+		(fstat(ins->dst_local_file.fd,&stt) == 0)?stt.st_size:0;
 	ins->dst_local_file.block_nr = file_sz / ins->dst_local_file.block_sz;
 	memset(ins->buf,0,RZYNC_BUF_SIZE);
 	snprintf(ins->buf,
@@ -341,6 +369,7 @@ void on_read_prepare_checksum_header(rzync_dst_t *ins)
 			ins->dst_local_file.block_sz);
 	ins->length = RZYNC_CHECKSUM_HEADER_SIZE;
 	ins->offset = 0;
+	return ON_READ_PREPARE_CHECKUM_HEADER_OK;
 }
 
 enum {
@@ -443,7 +472,7 @@ int parse_delta_file(rzync_dst_t *ins)
 			/* find the right place to read */
 			lseek(local_fd,RZYNC_BLOCK_SIZE*dh.nr,SEEK_SET);
 			/* read one block */
-			int n = read(ins->dst_local_file.fd,dup_buf,RZYNC_BLOCK_SIZE);
+			int n = read(local_fd,dup_buf,RZYNC_BLOCK_SIZE);
 			if(n != RZYNC_BLOCK_SIZE) {
 				perror("read one block from local file");
 				return PARSE_DELTA_FILE_ERR;
@@ -529,7 +558,10 @@ void on_read(int sock,short event,void *arg)
 					/* update the state */
 					ins->state = DST_REQ_RECEIVED;
 					/* prepare the checksum header */
-					on_read_prepare_checksum_header(ins);
+					i = on_read_prepare_checksum_header(ins);
+					if(i == ON_READ_PREPARE_CHECKUM_HEADER_ERR) {
+						goto clean_up;
+					}
 					goto re_add_ev_write;
 				}else if(i == ON_READ_RECV_SYNC_REQ_NOT_COMPLETE) {
 					/* go on to complete reading the request */
@@ -663,8 +695,17 @@ clean_up:
 }
 
 
-int main()
+int main(int argc,char *argv[])
 {
+	if(argc != 3) {
+		fprintf(stderr,"Usage : ./rzdst <origin_dir> <updated_dir>\n");
+		return 1;
+	}
+
+	/* set the origin and updated dir */
+	origin_dir = argv[1];
+	updated_dir = argv[2];
+
 	struct sockaddr_in addr;
 	int addr_len = sizeof(addr);
 	memset(&addr,0,addr_len);
