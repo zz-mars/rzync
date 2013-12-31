@@ -808,9 +808,10 @@ int main(int argc,char *argv[])
 				/* Done */
 //				printf("src send delta file done.\n");
 //				printf("-------------------- src statistics --------------------\n");
-				printf("total_bytes_received %llu\n",src.statistics.total_recved);
-				printf("total_bytes_sent %llu\n",src.statistics.total_sent);
-				printf("total_bytes_duplicated_blocks %llu\n",src.statistics.duplicated_block);
+				printf("total_bytes_received %llu total_bytes_sent %llu total_bytes_duplicated_blocks %llu\n",
+						src.statistics.total_recved,
+						src.statistics.total_sent,
+						src.statistics.duplicated_block);
 				goto clean_up;
 			case SRC_DONE:
 				/* undefined */
