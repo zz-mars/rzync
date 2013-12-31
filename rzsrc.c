@@ -808,7 +808,7 @@ int main(int argc,char *argv[])
 				/* Done */
 //				printf("src send delta file done.\n");
 //				printf("-------------------- src statistics --------------------\n");
-				printf("total_bytes_received %llu total_bytes_sent %llu total_bytes_duplicated_blocks %llu\n",
+				printf("%llu %llu %llu\n",
 						src.statistics.total_recved,
 						src.statistics.total_sent,
 						src.statistics.duplicated_block);
