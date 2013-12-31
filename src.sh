@@ -24,6 +24,7 @@ TOTAL_SENT=0
 TOTAL_RECVED=0
 DUP_BLKS=0
 
+start_point=$(date +%s)
 for file in $@
 do
 	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file"
@@ -32,6 +33,9 @@ do
 		exit 1
 	fi
 done
+end_point=$(date +%s)
+
+echo $(($end_point-$start_point))
 
 exit 0
 
