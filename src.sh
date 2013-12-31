@@ -26,8 +26,11 @@ DUP_BLKS=0
 
 for file in $@
 do
-	echo "Syncing file : $file"
 	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
+	if [ $? -ne 0 ] ;then 
+		echo "syncing file : $file fail...."
+		exit 1
+	fi
 done
 
 exit 0
