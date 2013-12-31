@@ -21,7 +21,7 @@ int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename)
 	snprintf(real_fn,TMP_FILE_NAME_LEN,
 			"%s/%s",dirname,filename);
 
-	printf("real file name : %s\n",real_fn);
+//	printf("real file name : %s\n",real_fn);
 	/* set md5 */
 	if(md5s_of_file(real_fn,src->md5) != 0) {
 		fprintf(stderr,"md5 of file fail!\n");
