@@ -1,12 +1,15 @@
 #!/bin/bash
 
 if [ $# -ne 2 ] ;then
-	echo "Usage ./src.sh <dir> <ip>"
+	echo "Usage ./src.sh <ip> <dir>"
 	exit 1
 fi
 
-DIR_TOS=$1
-IP_ADDR=$2
+IP_ADDR=$1
+DIR_TOS=$2
+
+echo "IP_ADDR : $IP_ADDR"
+echo "DIR_TOS : $DIR_TOS"
 
 set -- $(ls "$DIR_TOS")
 
@@ -23,8 +26,8 @@ DUP_BLKS=0
 
 for file in $@
 do
-#	echo "$file"
-	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
+	echo "$file"
+#	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
 done
 
 exit 0
