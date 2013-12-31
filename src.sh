@@ -8,8 +8,8 @@ fi
 IP_ADDR=$1
 DIR_TOS=$2
 
-echo "IP_ADDR : $IP_ADDR"
-echo "DIR_TOS : $DIR_TOS"
+#echo "IP_ADDR : $IP_ADDR"
+#echo "DIR_TOS : $DIR_TOS"
 
 set -- $(ls "$DIR_TOS")
 
@@ -26,7 +26,7 @@ DUP_BLKS=0
 
 for file in $@
 do
-	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" 
+	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file"
 	if [ $? -ne 0 ] ;then 
 		echo "syncing file : $file fail...."
 		exit 1

@@ -811,7 +811,7 @@ int main(int argc,char *argv[])
 				printf("%llu %llu %llu\n",
 						src.statistics.total_recved,
 						src.statistics.total_sent,
-						src.statistics.duplicated_block);
+						src.size);
 				goto clean_up;
 			case SRC_DONE:
 				/* undefined */
