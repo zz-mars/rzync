@@ -309,13 +309,13 @@ int prepare_checksums(rzync_dst_t *ins)
 		chksm.block_nr = ins->dst_local_file.checksum_sent + i;
 		/* calculate rolling chcksm */
 		chksm.rcksm = adler32_checksum(fbuf,dst_block_sz);
-		unsigned int s1 = chksm.rcksm & 0xffff;
-		unsigned int s2 = chksm.rcksm >> 16;
+	//	unsigned int s1 = chksm.rcksm & 0xffff;
+	//	unsigned int s2 = chksm.rcksm >> 16;
 		/* calculate md5 */
 		md5s_of_str(fbuf,dst_block_sz,chksm.md5);
 		/* put into buffer */
-		snprintf(p,RZYNC_CHECKSUM_SIZE,"$%u\n$%u\n$%u\n$%s\n",
-				chksm.block_nr,s1,s2,chksm.md5);
+		snprintf(p,RZYNC_CHECKSUM_SIZE,"$%u\n$%u\n$%s\n",
+				chksm.block_nr,chksm.rcksm,chksm.md5);
 	//	printf("%s",p);
 		p += RZYNC_CHECKSUM_SIZE;
 	}

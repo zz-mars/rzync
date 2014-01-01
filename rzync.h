@@ -227,7 +227,11 @@ enum dst_state {
  *   $rolling_checksum.A\n
  *   $rolling_checksum.B\n
  *   $md5\n
- *   ---------------------------------
+ *   --------------- ATTENTION: NEW	SPECIFICATION ON ROLLING CHECKSUM ---------------
+ *   $block_num\n
+ *   $rolling_checksum\n
+ *   $md5\n
+ *
  * 5) The src side receives these checksum infomation, keep them in a hash 
  *   table in memory. The src side scans the file to be synced, do the delta
  *   encoding.

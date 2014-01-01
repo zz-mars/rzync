@@ -235,6 +235,8 @@ int parse_checksum(char *buf,checksum_t *chksm)
 	if(i == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_ERR;
 	}
+	chksm->rcksm = i;
+	/*
 	unsigned int s1 = i;
 	i = str2i(&p,'$','\n');
 	if(i == STR2I_PARSE_FAIL) {
@@ -242,6 +244,7 @@ int parse_checksum(char *buf,checksum_t *chksm)
 	}
 	unsigned int s2 = i;
 	chksm->rcksm = (s1 & 0xffff) + (s2 << 16);
+	*/
 	if(*p++ != '$') {
 		return PARSE_CHECKSUM_ERR;
 	}
