@@ -379,6 +379,8 @@ void prepare_send_delta(rzync_src_t *src)
 	/* the delta header size */
 	src->src_delta.dup_header_sz = 0;
 	src->src_delta.ndup_header_sz = 0;
+	/* delta data */
+	src->src_delta.delta_data_sz = 0;
 //	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
 	/* clear file buf */
 	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
@@ -495,6 +497,7 @@ calculate_delta:
 		memcpy(src->buf+src->length,
 				file_buf+src->src_delta.buf.offset,
 				in_buf_not_processed);
+		src->src_delta.delta_data_sz += in_buf_not_processed;
 		src->length += in_buf_not_processed;
 		src->src_delta.buf.offset = src->src_delta.buf.length;
 		return PREPARE_DELTA_OK;
@@ -603,6 +606,7 @@ pack_delta:
 				memcpy(src->buf+src->length,
 						file_buf+blk_b4_match_start,
 						un_matched_block_sz);
+				src->src_delta.delta_data_sz += un_matched_block_sz;
 				src->length += un_matched_block_sz;
 			}
 			/* pack the header of duplicated block */
@@ -631,6 +635,7 @@ pack_delta:
 					memcpy(src->buf+src->length,
 							file_buf+src->src_delta.buf.offset,
 							last_blk_sz);
+					src->src_delta.delta_data_sz += last_blk_sz;
 					src->length += last_blk_sz;
 					src->src_delta.buf.offset = src->src_delta.buf.length;
 				}
@@ -647,7 +652,7 @@ pack_delta:
 			/* no match found, just pack the unmatched delta
 			 * after then, return PREPARE_DELTA_OK */
 			src->src_delta.buf.offset = (++blk_b4_match_end);
-			unsigned un_matched_block_sz = 
+			unsigned int un_matched_block_sz = 
 				blk_b4_match_end - blk_b4_match_start;
 			assert(un_matched_block_sz > 0);
 			int delta_header_sz = 
@@ -660,6 +665,7 @@ pack_delta:
 			memcpy(src->buf+src->length,
 					file_buf+blk_b4_match_start,
 					un_matched_block_sz);
+			src->src_delta.delta_data_sz += un_matched_block_sz;
 			src->length += un_matched_block_sz;
 			return PREPARE_DELTA_OK;
 		}
@@ -817,11 +823,35 @@ int main(int argc,char *argv[])
 				/* Done */
 //				printf("src send delta file done.\n");
 //				printf("-------------------- src statistics --------------------\n");
-				printf("%llu %llu %llu\n",
-						src.statistics.total_recved,
-						src.statistics.total_sent,
-						src.size);
-				goto clean_up;
+				{
+					unsigned int sync_req_sz = RZYNC_FILE_INFO_SIZE;
+					unsigned int checksum_head_sz = RZYNC_CHECKSUM_HEADER_SIZE;
+					unsigned long long checksums_sz = 
+						src.checksum_header.block_nr * RZYNC_CHECKSUM_SIZE;
+					unsigned long long total_sent = 
+						sync_req_sz +
+						src.src_delta.dup_header_sz + 
+						src.src_delta.ndup_header_sz +
+						src.src_delta.delta_data_sz;
+
+					unsigned long long total_recved =
+						checksum_head_sz + checksums_sz;
+
+					assert(total_sent == src.statistics.total_sent);
+					assert(total_recved == src.statistics.total_recved);
+
+					printf("%llu %u %llu %llu %llu %llu %u %llu %llu\n",
+							total_sent,
+							sync_req_sz,
+							src.src_delta.dup_header_sz,
+							src.src_delta.ndup_header_sz,
+							src.src_delta.delta_data_sz,
+							total_recved,
+							checksum_head_sz,
+							checksums_sz,
+							src.size);
+					goto clean_up;
+				}
 			case SRC_DONE:
 				/* undefined */
 				goto clean_up;
