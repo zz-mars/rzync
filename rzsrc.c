@@ -376,6 +376,9 @@ void prepare_send_delta(rzync_src_t *src)
 {
 	/* bytes already read from file */
 	src->src_delta.offset = 0;
+	/* the delta header size */
+	src->src_delta.dup_header_sz = 0;
+	src->src_delta.ndup_header_sz = 0;
 //	memset(&src->src_delta.chksm,0,sizeof(checksum_t));
 	/* clear file buf */
 	src->src_delta.buf.offset = src->src_delta.buf.length = 0;
@@ -486,6 +489,8 @@ calculate_delta:
 				RZYNC_BUF_SIZE-src->length,
 				"$%c$%u\n",
 				DELTA_NDUP,in_buf_not_processed);
+		/* update the non-dup delta header sz */
+		src->src_delta.ndup_header_sz += delta_header_len;
 		src->length += delta_header_len;
 		memcpy(src->buf+src->length,
 				file_buf+src->src_delta.buf.offset,
@@ -591,6 +596,7 @@ pack_delta:
 						RZYNC_BUF_SIZE-src->length,
 						"$%c$%u\n",
 						DELTA_NDUP,un_matched_block_sz);
+				src->src_delta.ndup_header_sz += delta_header_sz;
 				/* update src->length */
 				src->length += delta_header_sz;
 				/* packer delta data */
@@ -604,6 +610,7 @@ pack_delta:
 					RZYNC_BUF_SIZE-src->length,
 					"$%c$%u\n",
 					DELTA_DUP,chksm->block_nr);
+			src->src_delta.dup_header_sz += delta_header_sz;
 			src->length += delta_header_sz;
 			/* update state */
 			src->src_delta.buf.offset = checking_match_end;
@@ -619,6 +626,7 @@ pack_delta:
 							RZYNC_BUF_SIZE-src->length,
 							"$%c$%u\n",
 							DELTA_NDUP,last_blk_sz);
+					src->src_delta.ndup_header_sz += last_blk_hd_sz;
 					src->length += last_blk_hd_sz;
 					memcpy(src->buf+src->length,
 							file_buf+src->src_delta.buf.offset,
@@ -647,6 +655,7 @@ pack_delta:
 						RZYNC_BUF_SIZE-src->length,
 						"$%c$%u\n",
 						DELTA_NDUP,un_matched_block_sz);
+			src->src_delta.ndup_header_sz += delta_header_sz;
 			src->length += delta_header_sz;
 			memcpy(src->buf+src->length,
 					file_buf+blk_b4_match_start,

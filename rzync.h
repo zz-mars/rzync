@@ -87,6 +87,8 @@ typedef struct {
 	/* src delta */
 	struct {
 		unsigned long long offset;	// bytes already read from file
+		unsigned long long dup_header_sz;	// size of all the delta header
+		unsigned long long ndup_header_sz;	// size of all the delta header
 //		checksum_t chksm;			// checksum
 		struct {
 			unsigned int offset;	// current offset in buf
