@@ -2,7 +2,7 @@
 #include "util.h"
 
 /* set default block size to 4KB */
-static unsigned int dst_block_sz = RZYNC_BLOCK_SIZE;
+//static unsigned int dst_block_sz = RZYNC_BLOCK_SIZE;
 
 // the original directory
 #define RZYNC_ORIGIN_DIR	"rz_origin"		
@@ -162,6 +162,12 @@ int on_read_recv_sync_req(rzync_dst_t *ins)
 		return ON_READ_RECV_SYNC_REQ_ERR;
 	}
 	ins->size = fsize;
+	int src_blk_sz = str2i(&p,'$','\n');
+	if(src_blk_sz == STR2I_PARSE_FAIL) {
+		return ON_READ_RECV_SYNC_REQ_ERR;
+	}
+	ins->dst_local_file.block_sz = src_blk_sz;
+
 	long long mtime = str2ll(&p,'$','\n');
 	if(mtime == STR2LL_PARSE_FAIL) {
 		return ON_READ_RECV_SYNC_REQ_ERR;
@@ -268,6 +274,7 @@ enum {
  * 2) notify the caller with different return value */
 int prepare_checksums(rzync_dst_t *ins)
 {
+	unsigned int dst_block_sz = ins->dst_local_file.block_sz;
 	int checksums_left = ins->dst_local_file.block_nr - ins->dst_local_file.checksum_sent;
 //	assert(checksums_left >= 0);
 	if(checksums_left == 0) {
@@ -439,17 +446,16 @@ int on_read_prepare_checksum_header(rzync_dst_t *ins)
 		return ON_READ_PREPARE_CHECKUM_HEADER_ERR;
 	}
 
-	ins->dst_local_file.block_sz = dst_block_sz;
+//	ins->dst_local_file.block_sz = dst_block_sz;
 	struct stat stt;
 	unsigned long long file_sz = 
 		(fstat(ins->dst_local_file.fd,&stt) == 0)?stt.st_size:0;
 	ins->dst_local_file.block_nr = file_sz / ins->dst_local_file.block_sz;
 	memset(ins->buf,0,RZYNC_BUF_SIZE);
+	/* only send the block nr */
 	snprintf(ins->buf,
 			RZYNC_CHECKSUM_HEADER_SIZE,
-			"$%u\n$%u\n",
-			ins->dst_local_file.block_nr,
-			ins->dst_local_file.block_sz);
+			"$%u\n",ins->dst_local_file.block_nr);
 	ins->length = RZYNC_CHECKSUM_HEADER_SIZE;
 	ins->offset = 0;
 	return ON_READ_PREPARE_CHECKUM_HEADER_OK;
@@ -534,6 +540,7 @@ enum {
 /* parse_delta_file */
 int parse_delta_file(rzync_dst_t *ins)
 {
+	unsigned int dst_block_sz = ins->dst_local_file.block_sz;
 	int local_fd = ins->dst_local_file.fd;
 	int sync_fd = ins->dst_sync_file.fd;
 	char* dup_buf = malloc(dst_block_sz);
@@ -789,34 +796,10 @@ clean_up:
 
 int main(int argc,char *argv[])
 {
-	if(argc != 4) {
-		fprintf(stderr,"Usage : ./rzdst <origin_dir> <updated_dir> <block_sz in KB(<=16)>\n");
+	if(argc != 3) {
+		fprintf(stderr,"Usage : ./rzdst <origin_dir> <updated_dir>\n");
 		return 1;
 	}
-
-	unsigned char* blk_szp = argv[3];
-	unsigned int blk_kb = 0;
-	while(*blk_szp != '\0') {
-		unsigned char ch = *blk_szp++;
-		if(ch < '0' || ch > '9') {
-			fprintf(stderr,"Invalid block size!\n");
-			return 1;
-		}
-		blk_kb *= 10;
-		blk_kb += (ch-'0');
-	}
-
-	if(blk_kb == 0) {
-		fprintf(stderr,"Block size cannot be zero!\n");
-		return 1;
-	} else if(blk_kb > 16) {
-		fprintf(stderr,"Block size too big!\n");
-		return 1;
-	}
-
-	printf("dst block size : %u\n",blk_kb);
-	/* block size */
-	dst_block_sz = blk_kb*1024;
 
 	/* set the origin and updated dir */
 	origin_dir = argv[1];

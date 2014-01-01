@@ -207,6 +207,17 @@ enum dst_state {
  *	  $modification_time\n
  *	  $md5\n
  *   ---------------------------------
+ *	 ATTENTION: NEW SPECIFICATION:
+ *	 BLOCK SIZE WILL BE SPECIFIED BY THE SRC SIDE
+ *	 SO THE NEW SYNC REQ WILL INCLUDE A BLOCK_SZ
+ *   ------------- new sync req specification ----------------
+ *	  #length_of_file_name\n
+ *	  $filename\n
+ *	  $size\n
+ *	  $block_sz\n
+ *	  $modification_time\n
+ *	  $md5\n
+ *
  * 3) Once the dst side receives this information, it checks file specified 
  *   by the request in its current working directory. Get the size then send 
  *   the total block number and block size to the src as the checksum Header.
@@ -214,11 +225,17 @@ enum dst_state {
  *   ---------------------------------
  *   $block_nr\n
  *   $block_size\n
+ *
  *   == post-script ==
  *   If no file with name  "$filename" is found, the dst will just send the 
  *   checksum header with block_nr = 0, so that the src side will send all 
  *   its file data without delta-encoding.
  *   ---------------------------------
+ *	 ------------ NEW CHECKSUM HEADER ------------
+ *   simple a block nr
+ *
+ *   $block_nr\n
+ *
  * 4) After sending the checksum header, it calculates the rolling hash and
  *   md5 of the block of local file, send the checksum information to src 
  *   side in the following format:

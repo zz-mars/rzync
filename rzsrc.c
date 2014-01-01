@@ -5,8 +5,9 @@ enum {
 	INIT_RZYNC_SRC_OK = 0,
 	INIT_RZYNC_SRC_ERR
 };
-int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename)
+int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename,unsigned int src_block_sz)
 {
+	src->checksum_header.block_sz = src_block_sz;
 	/* set filename */
 	memset(src,0,sizeof(rzync_src_t));
 	int filenamelen = strlen(filename);
@@ -77,10 +78,11 @@ void prepare_send_sync_request(rzync_src_t *src)
 {
 	int filenamelen = strlen(src->filename);
 	memset(src->buf,0,RZYNC_BUF_SIZE);
-	snprintf(src->buf,RZYNC_BUF_SIZE,"#%u\n$%s\n$%llu\n$%llu\n$%s\n",
+	snprintf(src->buf,RZYNC_BUF_SIZE,"#%u\n$%s\n$%llu\n$%u\n$%llu\n$%s\n",
 			filenamelen,
 			src->filename,
 			src->size,
+			src->checksum_header.block_sz,
 			src->mtime,
 			src->md5);
 	src->length = RZYNC_FILE_INFO_SIZE;
@@ -125,14 +127,16 @@ enum {
 int parse_checksum_header(rzync_src_t *src)
 {
 	char *p = src->buf;
-	src->checksum_header.block_nr = str2i(&p,'$','\n');
-	if(src->checksum_header.block_nr == STR2I_PARSE_FAIL) {
+	int i = str2i(&p,'$','\n');
+	if(i == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_HEADER_ERR;
 	}
-	src->checksum_header.block_sz = str2i(&p,'$','\n');
-	if(src->checksum_header.block_sz == STR2I_PARSE_FAIL) {
-		return PARSE_CHECKSUM_HEADER_ERR;
-	}
+	src->checksum_header.block_nr = i;
+	/* no block size now */
+//	src->checksum_header.block_sz = str2i(&p,'$','\n');
+//	if(src->checksum_header.block_sz == STR2I_PARSE_FAIL) {
+//		return PARSE_CHECKSUM_HEADER_ERR;
+//	}
 //	printf("checksumheader -- block_nr %u -- block_sz %u\n",
 //			src->checksum_header.block_nr,
 //			src->checksum_header.block_sz);
@@ -691,14 +695,39 @@ pack_delta:
 
 int main(int argc,char *argv[])
 {
-	if(argc != 4) {
-		fprintf(stderr,"Usage : ./rzsrc <dst_ip> <dir_name> <file_name>\n");
+	if(argc != 5) {
+		fprintf(stderr,"Usage : ./rzsrc <dst_ip> <dir_name> <file_name> <block_sz in KB(<=16)>\n");
 		return 1;
 	}
 	/* local dir is needed */
 	char* dst_ip = argv[1];
 	char* dirname = argv[2];
 	char* filename = argv[3];
+
+	unsigned char* blk_szp = argv[4];
+	unsigned int blk_kb = 0;
+	while(*blk_szp != '\0') {
+		unsigned char ch = *blk_szp++;
+		if(ch < '0' || ch > '9') {
+			fprintf(stderr,"Invalid block size!\n");
+			return 1;
+		}
+		blk_kb *= 10;
+		blk_kb += (ch-'0');
+	}
+
+	if(blk_kb == 0) {
+		fprintf(stderr,"Block size cannot be zero!\n");
+		return 1;
+	} else if(blk_kb > 16) {
+		fprintf(stderr,"Block size too big!\n");
+		return 1;
+	}
+
+	printf("src block size : %u KB\n",blk_kb);
+	/* block size */
+	unsigned int src_block_sz = blk_kb*1024;
+
 	/* ELEMENTS WHICH WILL BE SET IN INITIALIZATION
 	 * @filename
 	 * @size
@@ -710,7 +739,7 @@ int main(int argc,char *argv[])
 	 * RETURN 1 ON ERROR
 	 * */
 	rzync_src_t src;
-	if(init_rzyncsrc(&src,dirname,filename) != INIT_RZYNC_SRC_OK) {
+	if(init_rzyncsrc(&src,dirname,filename,src_block_sz) != INIT_RZYNC_SRC_OK) {
 		return 1;
 	}
 	
