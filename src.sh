@@ -1,12 +1,13 @@
 #!/bin/bash
 
-if [ $# -ne 2 ] ;then
-	echo "Usage ./src.sh <ip> <dir>"
+if [ $# -ne 3 ] ;then
+	echo "Usage ./src.sh <ip> <dir> <blk_sz in KB>"
 	exit 1
 fi
 
 IP_ADDR=$1
 DIR_TOS=$2
+BLK_SZ=$3
 
 #echo "IP_ADDR : $IP_ADDR"
 #echo "DIR_TOS : $DIR_TOS"
@@ -27,7 +28,7 @@ DUP_BLKS=0
 start_point=$(date +%s)
 for file in $@
 do
-	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file"
+	./rzsrc "$IP_ADDR" "$DIR_TOS" "$file" "$BLK_SZ"
 	if [ $? -ne 0 ] ;then 
 		echo "syncing file : $file fail...."
 		exit 1
