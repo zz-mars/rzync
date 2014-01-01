@@ -558,9 +558,9 @@ one_byte_forward:
 		blk_b4_match_end = checking_match_start;
 		rcksm = 
 			adler32_rolling_checksum(rcksm,block_sz,old_ch,new_ch);
-		unsigned int drcksm = 
-			adler32_checksum(file_buf+checking_match_start,block_sz);
-		assert(rcksm == drcksm);
+	//	unsigned int drcksm = 
+	//		adler32_checksum(file_buf+checking_match_start,block_sz);
+	//	assert(rcksm == drcksm);
 		continue;
 pack_delta:
 //		printf("pack delta....................\n");
