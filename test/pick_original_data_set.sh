@@ -20,11 +20,21 @@ fi
 
 for file in $@
 do
-	full_name="$SRC_DIR/$file"
+#	echo "$file"
+#	continue
+	full_name=$SRC_DIR/$file
 	if [ -d "$full_name" ] ;then
 		continue
 	fi
+
+#	echo "$full_name"
+#	stat "$full_name" | awk 'NR==2{print $2}'
 	sz=$(stat "$full_name" | awk 'NR==2{print $2}')
+	
+	if [ $? -ne 0 ] ;then
+		exit 1
+	fi
+
 	if [ $sz -gt 8192 ] ;then
 		cp "$full_name" "$DST_DIR/$file"
 	fi
