@@ -352,7 +352,7 @@ int receive_checksums(rzync_src_t *src)
 			fprintf(stderr,"parse checksum fail...................\n");
 			return RECEIVE_CHCKSMS_ERR;
 		}
-		assert(chksm->block_nr == block_nr);
+	//	assert(chksm->block_nr == block_nr);
 		/* insert chksm to hash table */
 		hash_insert(src->hashtable,chksm);
 		p += RZYNC_CHECKSUM_SIZE;
@@ -403,7 +403,7 @@ int prepare_delta(rzync_src_t *src)
 	unsigned int in_buf_not_processed = 
 		src->src_delta.buf.length - src->src_delta.buf.offset;
 //	printf("in_buf_not_processed -- %u\n",in_buf_not_processed);
-	assert(in_buf_not_processed >= 0);
+//	assert(in_buf_not_processed >= 0);
 	if(in_buf_not_processed >= block_sz) {
 		/* enough data to process,
 		 * directly go to calculate delta */
@@ -443,7 +443,7 @@ int prepare_delta(rzync_src_t *src)
 		 * calculate from the data currently in buffer */
 		goto calculate_delta;
 	}
-	assert(bytes_in_file_not_processed > 0);
+//	assert(bytes_in_file_not_processed > 0);
 	/* bytes_in_file_not_processed > 0 */
 	unsigned int buf_capcity = RZYNC_DETLTA_BUF_SIZE - src->src_delta.buf.length;
 //	printf("buf_capcity -- %u\n",buf_capcity);
@@ -480,7 +480,7 @@ calculate_delta:
 //		printf("no more data to process....................\n");
 		return PREPARE_DELTA_NO_MORE_TO_SEND;
 	}
-	assert(in_buf_not_processed > 0);
+//	assert(in_buf_not_processed > 0);
 	/* clear socket buf */
 	memset(src->buf,0,RZYNC_BUF_SIZE);
 	src->length = src->offset = 0;
@@ -510,7 +510,7 @@ calculate_delta:
 	/* the block which is checked for match */
 	unsigned int checking_match_start = blk_b4_match_end;
 	unsigned int checking_match_end = checking_match_start + block_sz;
-	assert(checking_match_end <= src->src_delta.buf.length);
+//	assert(checking_match_end <= src->src_delta.buf.length);
 	/* calculate the rolling checksum of the first block */
 	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
 	/* try to pack the bytes in file buffer into the socket buffer */
@@ -547,7 +547,7 @@ one_byte_forward:
 			 * return after pack delta into buffer */
 			goto pack_delta;
 		}
-		assert(checking_match_end < src->src_delta.buf.length);
+	//	assert(checking_match_end < src->src_delta.buf.length);
 		unsigned char old_ch = file_buf[checking_match_start++];
 		unsigned char new_ch = file_buf[++checking_match_end];
 		blk_b4_match_end = checking_match_start;
@@ -591,7 +591,7 @@ pack_delta:
 			/* pack the unmatched(if there is one..) and matched block */
 			unsigned int un_matched_block_sz = 
 				blk_b4_match_end - blk_b4_match_start;
-			assert(un_matched_block_sz >= 0);
+		//	assert(un_matched_block_sz >= 0);
 			if(un_matched_block_sz > 0) {
 				/* there is an unmatched block before the matched one */
 				/* pack delta header */
@@ -654,7 +654,7 @@ pack_delta:
 			src->src_delta.buf.offset = (++blk_b4_match_end);
 			unsigned int un_matched_block_sz = 
 				blk_b4_match_end - blk_b4_match_start;
-			assert(un_matched_block_sz > 0);
+		//	assert(un_matched_block_sz > 0);
 			int delta_header_sz = 
 				snprintf(src->buf+src->length,
 						RZYNC_BUF_SIZE-src->length,

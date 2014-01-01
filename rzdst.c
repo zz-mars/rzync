@@ -125,7 +125,7 @@ int send_dst_buf(rzync_dst_t *ins)
 	if(ins->offset == ins->length) {
 		return SEND_DST_BUF_OK;
 	}
-	assert(ins->offset < ins->length);
+//	assert(ins->offset < ins->length);
 	return SEND_DST_BUF_NOT_COMPLETE;
 }
 
@@ -193,7 +193,7 @@ enum {
 int prepare_checksums(rzync_dst_t *ins)
 {
 	int checksums_left = ins->dst_local_file.block_nr - ins->dst_local_file.checksum_sent;
-	assert(checksums_left >= 0);
+//	assert(checksums_left >= 0);
 	if(checksums_left == 0) {
 		return PREPARE_CHECKSUMS_NO_MORE_TO_SEND;
 	}
@@ -255,7 +255,6 @@ int prepare_checksums(rzync_dst_t *ins)
 void on_write(int sock,short event,void *arg)
 {
 	rzync_dst_t *ins = (rzync_dst_t *)arg;
-	assert(sock == ins->sockfd);
 	switch(ins->state) {
 		case DST_INIT:
 			/* undefined */
@@ -420,7 +419,7 @@ enum {
 int parse_delta_header(char *buf,unsigned int sidx,unsigned int eidx,delta_header_t *dh)
 {
 	int buf_len = eidx - sidx;
-	assert(buf_len >= 0);
+//	assert(buf_len >= 0);
 
 	int i;
 	for(i=sidx;i<eidx;i++) {
@@ -512,14 +511,14 @@ int parse_delta_file(rzync_dst_t *ins)
 		}
 		/* update the bytes_recvd */
 		ins->dst_sync_file.bytes_recvd += wbytes;
-		assert(ins->dst_sync_file.bytes_recvd <= ins->size);
+	//	assert(ins->dst_sync_file.bytes_recvd <= ins->size);
 		if(ins->dst_sync_file.bytes_recvd == ins->size) {
 			ret = PARSE_DELTA_FILE_ALL_DONE;
 			goto free_dup_buf_and_ret;
 		}
 		/* update the buffer offset */
 		ins->offset += offset_adjust;
-		assert(ins->offset <= ins->length);
+	//	assert(ins->offset <= ins->length);
 		/* continue */
 	}
 free_dup_buf_and_ret:
@@ -531,7 +530,7 @@ need_read_more:
 	free(dup_buf);
 	{
 		int now_in_buf = ins->length - ins->offset;
-		assert(now_in_buf >= 0);
+	//	assert(now_in_buf >= 0);
 		if(now_in_buf > 0) {
 			char *tmp_buf = (char*)malloc(now_in_buf);
 			if(!tmp_buf) {
@@ -559,7 +558,6 @@ need_read_more:
 void on_read(int sock,short event,void *arg)
 {
 	rzync_dst_t *ins = (rzync_dst_t*)arg;
-	assert(sock == ins->sockfd);
 	switch(ins->state) {
 		case DST_INIT:
 			/* read RZYNC_FILE_INFO */
