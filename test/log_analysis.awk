@@ -26,16 +26,20 @@ BEGIN{
 	}
 }
 END{
-	printf("+++++++++++++++++++++++++++++");
-	printf("time elapsed : %u\n",t);
-	printf("total_sent : %u\n",ts);
-	printf("total_req  : %u\n",treq);
-	printf("total_dup_h: %u\n",tduph);
-	printf("total_ndup_h: %u\n",tnduph);
-	printf("total_delta_data : %u\n",tdd);
-	printf("total_recved: %u\n",tr);
-	printf("total_checksum_h : %u\n",tckh);
-	printf("total_checksums : %u\n",tcks);
-	printf("total_filesz : %u\n",tfsz);
+	total_interact_data=ts+tr;
+	compression_ratio=100.0*(tfsz-total_interact_data)/tfsz;
+	printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
+	printf("time elapsed -------- : %u\n",t);
+	printf("total_sent ---------- : %u\n",ts);
+	printf("total_req ----------- : %u\n",treq);
+	printf("total_dup_h --------- : %u\n",tduph);
+	printf("total_ndup_h -------- : %u\n",tnduph);
+	printf("total_delta_data ---- : %u\n",tdd);
+	printf("total_recved -------- : %u\n",tr);
+	printf("total_checksum_h ---- : %u\n",tckh);
+	printf("total_checksums ----- : %u\n",tcks);
+	printf("total_interact_data - : %u\n",total_interact_data);
+	printf("total_filesz -------- : %u\n",tfsz);
+	printf("compression_ratio --- : %f%\n",compression_ratio);
 }
 
