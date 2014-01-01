@@ -32,6 +32,7 @@
 #define RZYNC_MAX_NAME_LENGTH		256
 
 /* ----------------- rolling hash ------------------ */
+/*
 typedef union {
 	unsigned int rolling_checksum;
 	struct {
@@ -40,8 +41,11 @@ typedef union {
 	} rolling_AB;
 } rolling_checksum_t;
 
-rolling_checksum_t adler32_direct(unsigned char *buf,int n);
-rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,rolling_checksum_t prev_adler);
+rolling_checksum_t adler32_direct
+rolling_checksum_t adler32_rolling
+*/
+unsigned int adler32_checksum(unsigned char* buf,int len);
+unsigned int adler32_rolling_checksum(unsigned int csum,int len,unsigned char c1,unsigned char c2);
 
 
 /* ----------------- hash table ------------------ */
@@ -50,7 +54,7 @@ rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int
  * ONLY FOR CONSTRUCTING IN-MEMORY HASH TABLE */
 typedef struct {
 	unsigned int block_nr;
-	rolling_checksum_t rcksm;
+	unsigned int rcksm;
 	char md5[RZYNC_MD5_CHECK_SUM_BITS+1];
 	struct list_head hash;	// for list in hash table
 } checksum_t;

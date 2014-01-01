@@ -231,14 +231,17 @@ int parse_checksum(char *buf,checksum_t *chksm)
 	if(chksm->block_nr == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_ERR;
 	}
-	chksm->rcksm.rolling_AB.A = str2i(&p,'$','\n');
-	if(chksm->rcksm.rolling_AB.A == STR2I_PARSE_FAIL) {
+	int i = str2i(&p,'$','\n');
+	if(i == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_ERR;
 	}
-	chksm->rcksm.rolling_AB.B = str2i(&p,'$','\n');
-	if(chksm->rcksm.rolling_AB.B == STR2I_PARSE_FAIL) {
+	unsigned int s1 = i;
+	i = str2i(&p,'$','\n');
+	if(i == STR2I_PARSE_FAIL) {
 		return PARSE_CHECKSUM_ERR;
 	}
+	unsigned int s2 = i;
+	chksm->rcksm = (s1 & 0xffff) + (s2 << 16);
 	if(*p++ != '$') {
 		return PARSE_CHECKSUM_ERR;
 	}
@@ -253,7 +256,7 @@ inline unsigned int very_simple_hash(unsigned int num,unsigned int mod)
 
 inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 {
-	unsigned int hash_pos = very_simple_hash(chksm->rcksm.rolling_checksum,ht->hash_nr);
+	unsigned int hash_pos = very_simple_hash(chksm->rcksm,ht->hash_nr);
 	list_add(&chksm->hash,&ht->slots[hash_pos]);
 }
 
@@ -274,13 +277,14 @@ checksum_t *hash_search(checksum_hashtable_t *ht,unsigned int rcksm)
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
-		if(cksm->rcksm.rolling_checksum == rcksm) {
+		if(cksm->rcksm == rcksm) {
 			return cksm;
 		}
 	}
 	return NULL;
 }
 
+/*
 void hash_analysis(checksum_hashtable_t *ht)
 {
 	printf("ht -- hash_bits -- %u hash_nr -- %u\n",ht->hash_bits,ht->hash_nr);
@@ -298,6 +302,7 @@ void hash_analysis(checksum_hashtable_t *ht)
 		putchar('\n');
 	}
 }
+*/
 
 enum {
 	RECEIVE_CHCKSMS_OK = 0,
@@ -512,14 +517,14 @@ calculate_delta:
 	unsigned int checking_match_end = checking_match_start + block_sz;
 //	assert(checking_match_end <= src->src_delta.buf.length);
 	/* calculate the rolling checksum of the first block */
-	rolling_checksum_t rcksm = adler32_direct(file_buf+checking_match_start, block_sz);
+	unsigned int rcksm = adler32_checksum(file_buf+checking_match_start, block_sz);
 	/* try to pack the bytes in file buffer into the socket buffer */
 	while(1) {
 //		printf("b4_match_start -- %u b4_match_end -- %u -- match_start -- %u match_end -- %u\n",
 //				blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
 		int match_found = 0;	// initialized to 0 as not_found
 		/* try to find a matched block in the file buffer */
-		checksum_t *chksm = hash_search(src->hashtable,rcksm.rolling_checksum);
+		checksum_t *chksm = hash_search(src->hashtable,rcksm);
 		if(!chksm) {
 		//	printf("rolling checksum match not found!.............................\n");
 			/* rolling checksum not match */
@@ -549,13 +554,13 @@ one_byte_forward:
 		}
 	//	assert(checking_match_end < src->src_delta.buf.length);
 		unsigned char old_ch = file_buf[checking_match_start++];
-		unsigned char new_ch = file_buf[++checking_match_end];
+		unsigned char new_ch = file_buf[checking_match_end++];
 		blk_b4_match_end = checking_match_start;
-//		rcksm = adler32_rolling(old_ch,new_ch,block_sz,rcksm);
-//		/* test rolling checksum */
-//		rolling_checksum_t direct_calculated_rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
-//		assert(rcksm.rolling_checksum == direct_calculated_rcksm.rolling_checksum);
-		rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
+		rcksm = 
+			adler32_rolling_checksum(rcksm,block_sz,old_ch,new_ch);
+		unsigned int drcksm = 
+			adler32_checksum(file_buf+checking_match_start,block_sz);
+		assert(rcksm == drcksm);
 		continue;
 pack_delta:
 //		printf("pack delta....................\n");
@@ -647,7 +652,7 @@ pack_delta:
 			checking_match_start = blk_b4_match_end;
 			checking_match_end = checking_match_start + block_sz;
 			/* re-calculate the rolling checksum */
-			rcksm = adler32_direct(file_buf+checking_match_start,block_sz);
+			rcksm = adler32_checksum(file_buf+checking_match_start,block_sz);
 		}else {
 			/* no match found, just pack the unmatched delta
 			 * after then, return PREPARE_DELTA_OK */

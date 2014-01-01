@@ -1,44 +1,44 @@
 #include "rzync.h"
 
-#define ADLER_MOD			(1<<16)
+#define CHAR_OFFSET 0
 
-/* Implementation of adler32 algorithms */
-/* Algorithms specification :
- * A = (1 + D1 + D2 +...+ Dn) mod ADLER_MOD
- * B = (n*D1 + (n-1)*D2 +...+ Dn + n) mod ADLER_MOD
- *
- * A' = (A + Dn+1 -D1 + ADLER_MOD) mod ADLER_MOD
- * B' = (A + B + Dn+1 + ADLER_MOD - 1 - (n + 1) * D1) mod ADLER_MOD
- * */
-
-#define ROLLING_EQUAL(x,y)	(x.rolling_checksum == y.rolling_checksum)
-
-/* direct calculation of adler32 */
-rolling_checksum_t adler32_direct(unsigned char *buf,int n)
+/*
+ *   a simple 32 bit checksum that can be upadted from either end
+ *   (inspired by Mark Adler's Adler-32 checksum)
+ */
+unsigned int adler32_checksum(unsigned char *buf, int len)
 {
-	unsigned long long a = 0;
-	unsigned long long b = 0;
 	int i;
-	for(i=0;i<n;i++) {
-		unsigned char ch = buf[i];
-		a += ch;
-		b += (n-i)*ch;
+	unsigned int s1, s2;
+
+	s1 = s2 = 0;
+	for (i = 0; i < (len - 4); i += 4) {
+		s2 += 4 * (s1 + buf[i]) + 3 * buf[i+1] + 2 * buf[i+2] + buf[i+3] +
+			10 * CHAR_OFFSET;
+		s1 += (buf[i+0] + buf[i+1] + buf[i+2] + buf[i+3] + 4 * CHAR_OFFSET);
 	}
-	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.A = a % ADLER_MOD;
-	rcksm.rolling_AB.B = b % ADLER_MOD;
-	return rcksm;
+	for (; i < len; i++) {
+		s1 += (buf[i]+CHAR_OFFSET); 
+		s2 += s1;
+	}
+
+	return (s1 & 0xffff) + (s2 << 16);
 }
 
-/* rolling style calculation */
-rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int n,rolling_checksum_t prev_adler)
+/*
+ * adler32_checksum(X0, ..., Xn), X0, Xn+1 ----> adler32_checksum(X1, ..., Xn+1)
+ * where csum is adler32_checksum(X0, ..., Xn), c1 is X0, c2 is Xn+1
+ */
+unsigned int adler32_rolling_checksum(unsigned int csum, int len, unsigned char c1, unsigned char c2)
 {
-	unsigned int A = prev_adler.rolling_AB.A;
-	unsigned int B = prev_adler.rolling_AB.B;
-	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.A = (A + new_ch - old_ch) % ADLER_MOD;
-	rcksm.rolling_AB.B = (B + rcksm.rolling_AB.A + n * old_ch) % ADLER_MOD;
-	return rcksm;
+	unsigned int s1, s2;
+
+	s1 = csum & 0xffff;
+	s2 = csum >> 16;
+	s1 -= (c1 - c2);
+	s2 -= (len * c1 - s1);
+
+	return (s1 & 0xffff) + (s2 << 16);
 }
 
 /* ----------------- checksum hashtable ------------------ */
@@ -76,85 +76,5 @@ void checksum_hashtable_destory(checksum_hashtable_t *ht)
 		free(ht->slots);
 	}
 	free(ht);
-}
-
-/* ----------------- rzync_dst_t pool ------------------ */
-/* initialize to a null list */
-rzyncdst_freelist_t *rzyncdst_freelist_init(void)
-{
-	rzyncdst_freelist_t *fl = (rzyncdst_freelist_t*)malloc(sizeof(rzyncdst_freelist_t));
-	if(!fl) {
-		return NULL;
-	}
-	fl->client_nr = 0;
-	fl->pool_head = NULL;
-	list_head_init(&fl->free_list);
-	return fl;
-}
-
-void rzyncdst_freelist_destory(rzyncdst_freelist_t *fl)
-{
-	rzyncdst_pool_t *p = fl->pool_head;
-	while(p) {
-		rzyncdst_pool_t *q = p->next;
-		if(p->clients) {
-			free(p->clients);
-		}
-		free(p);
-		p = q;
-	}
-	free(fl);
-	printf("free list destroyed...........\n");
-}
-
-rzync_dst_t *get_rzyncdst(rzyncdst_freelist_t *fl)
-{
-	rzync_dst_t *cl;
-//	printf("current in the pool --------- %d\n",fl->client_nr);
-	if(fl->client_nr == 0) {
-//		printf("need add some rzync_dst_t in the pool........\n");
-		/* add more elements */
-		rzyncdst_pool_t *cp = (rzyncdst_pool_t*)malloc(sizeof(rzyncdst_pool_t));
-		if(!cp) {
-			return NULL;
-		}
-		cp->client_nr = RZYNC_CLIENT_POOL_SIZE;
-		cp->next = NULL;
-		cp->clients = (rzync_dst_t*)malloc(cp->client_nr*sizeof(rzync_dst_t));
-		if(!cp->clients) {
-			free(cp);
-			return NULL;
-		}
-		/* insert to free list */
-		int i;
-		for(i=0;i<cp->client_nr-1;i++) {
-			list_add(&cp->clients[i].flist,&fl->free_list);
-		}
-		/* insert to pool list */
-		if(!fl->pool_head) {
-			fl->pool_head = cp;
-		}else {
-			cp->next = fl->pool_head->next;
-			fl->pool_head = cp;
-		}
-		fl->client_nr += (cp->client_nr - 1);
-		/* return the last one */
-		cl = &cp->clients[cp->client_nr-1];
-	} else {
-		/* get one directly from free list */
-		struct list_head *l = fl->free_list.next;
-		list_del(l);
-		fl->client_nr--;
-		cl = ptr_clientof(l);
-	}
-//	printf("after get one from the pool --------- %d\n",fl->client_nr);
-	return cl;
-}
-
-void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl)
-{
-	list_add(&cl->flist,&fl->free_list);
-	fl->client_nr++;
-//	printf("after put one to the pool, in the pool now --------- %d\n",fl->client_nr);
 }
 
