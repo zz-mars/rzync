@@ -144,6 +144,7 @@ int on_read_recv_sync_req(rzync_dst_t *ins)
 
 	/* parse the request */
 	char *p = ins->buf;
+//	printf("rsync -- \n%s\n",p);
 	/* file name length */
 	int filenamelen = str2i(&p,'#','\n');
 	if(filenamelen == STR2I_PARSE_FAIL ||

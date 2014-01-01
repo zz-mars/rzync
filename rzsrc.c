@@ -1,15 +1,18 @@
 #include "rzync.h"
 #include "util.h"
 
+static unsigned src_block_sz;
+
 enum {
 	INIT_RZYNC_SRC_OK = 0,
 	INIT_RZYNC_SRC_ERR
 };
-int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename,unsigned int src_block_sz)
+int init_rzyncsrc(rzync_src_t *src, char* dirname, char *filename)
 {
+	memset(src,0,sizeof(rzync_src_t));
+	/* set block sz */
 	src->checksum_header.block_sz = src_block_sz;
 	/* set filename */
-	memset(src,0,sizeof(rzync_src_t));
 	int filenamelen = strlen(filename);
 	if(filenamelen >= RZYNC_MAX_NAME_LENGTH) {
 		fprintf(stderr,"file name too long!\n");
@@ -124,7 +127,7 @@ enum {
 	PARSE_CHECKSUM_HEADER_ERR
 };
 
-int parse_checksum_header(rzync_src_t *src)
+inline int parse_checksum_header(rzync_src_t *src)
 {
 	char *p = src->buf;
 	int i = str2i(&p,'$','\n');
@@ -724,9 +727,9 @@ int main(int argc,char *argv[])
 		return 1;
 	}
 
-	printf("src block size : %u KB\n",blk_kb);
 	/* block size */
-	unsigned int src_block_sz = blk_kb*1024;
+	src_block_sz = blk_kb*1024;
+//	printf("src block size : %u KB -- %u Bytes\n",blk_kb,src_block_sz);
 
 	/* ELEMENTS WHICH WILL BE SET IN INITIALIZATION
 	 * @filename
@@ -739,7 +742,7 @@ int main(int argc,char *argv[])
 	 * RETURN 1 ON ERROR
 	 * */
 	rzync_src_t src;
-	if(init_rzyncsrc(&src,dirname,filename,src_block_sz) != INIT_RZYNC_SRC_OK) {
+	if(init_rzyncsrc(&src,dirname,filename) != INIT_RZYNC_SRC_OK) {
 		return 1;
 	}
 	
