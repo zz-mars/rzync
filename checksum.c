@@ -1,6 +1,6 @@
 #include "rzync.h"
 
-#define ADLER_MOD			65521
+#define ADLER_MOD			(1<<16)
 
 /* Implementation of adler32 algorithms */
 /* Algorithms specification :
@@ -16,14 +16,17 @@
 /* direct calculation of adler32 */
 rolling_checksum_t adler32_direct(unsigned char *buf,int n)
 {
-	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.A = 1;
-	rcksm.rolling_AB.B = 0;
+	unsigned long long a = 0;
+	unsigned long long b = 0;
 	int i;
 	for(i=0;i<n;i++) {
-		rcksm.rolling_AB.A = ( rcksm.rolling_AB.A + buf[i] ) % ADLER_MOD;
-		rcksm.rolling_AB.B = ( rcksm.rolling_AB.B + rcksm.rolling_AB.A ) % ADLER_MOD;
+		unsigned char ch = buf[i];
+		a += ch;
+		b += (n-i)*ch;
 	}
+	rolling_checksum_t rcksm;
+	rcksm.rolling_AB.A = a % ADLER_MOD;
+	rcksm.rolling_AB.B = b % ADLER_MOD;
 	return rcksm;
 }
 
@@ -33,8 +36,8 @@ rolling_checksum_t adler32_rolling(unsigned char old_ch,unsigned char new_ch,int
 	unsigned int A = prev_adler.rolling_AB.A;
 	unsigned int B = prev_adler.rolling_AB.B;
 	rolling_checksum_t rcksm;
-	rcksm.rolling_AB.A = (A + new_ch + ADLER_MOD - old_ch) % ADLER_MOD;
-	rcksm.rolling_AB.B = (B + A + new_ch + ADLER_MOD - 1 - (n + 1) * old_ch) % ADLER_MOD;
+	rcksm.rolling_AB.A = (A + new_ch - old_ch) % ADLER_MOD;
+	rcksm.rolling_AB.B = (B + rcksm.rolling_AB.A + n * old_ch) % ADLER_MOD;
 	return rcksm;
 }
 
