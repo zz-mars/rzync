@@ -156,12 +156,14 @@ enum {
 /* When checksum header received successfully */
 int prepare_receive_checksums(rzync_src_t *src)
 {
+	int ret = PREPARE_RECV_CHCKSMS_OK;
 	/* set checksums already recved to 0 */
 	src->checksum_recvd = 0;
 
 	if(src->checksum_header.block_nr == 0) {
 		/* When no checksum */
-		return PREPARE_RECV_CHCKSMS_NO_CHEKSMS;
+		ret = PREPARE_RECV_CHCKSMS_NO_CHEKSMS;
+		/* hash table is still necessary */
 	}
 
 	/* clear buffer */
@@ -183,7 +185,7 @@ int prepare_receive_checksums(rzync_src_t *src)
 		src->hashtable = NULL;
 		return PREPARE_RECV_CHCKSMS_ERR;
 	}
-	return PREPARE_RECV_CHCKSMS_OK;
+	return ret;
 }
 
 enum {
@@ -276,7 +278,9 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
  * checking the md5, if rolling hash matches */
 checksum_t *hash_search(checksum_hashtable_t *ht,unsigned int rcksm)
 {
+//	printf("hash_search -- hash with %u\n",rcksm);
 	unsigned int hash_pos = very_simple_hash(rcksm,ht->hash_nr);
+//	printf("hash_search -- hash_pos %u\n",hash_pos);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
@@ -527,6 +531,7 @@ calculate_delta:
 //				blk_b4_match_start,blk_b4_match_end,checking_match_start,checking_match_end);
 		int match_found = 0;	// initialized to 0 as not_found
 		/* try to find a matched block in the file buffer */
+		assert(src->hashtable != NULL);
 		checksum_t *chksm = hash_search(src->hashtable,rcksm);
 		if(!chksm) {
 		//	printf("rolling checksum match not found!.............................\n");
