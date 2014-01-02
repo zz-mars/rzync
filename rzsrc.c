@@ -885,7 +885,7 @@ int main(int argc,char *argv[])
 					assert(total_sent == src.statistics.total_sent);
 					assert(total_recved == src.statistics.total_recved);
 
-					printf("%llu %u %llu %llu %llu %llu %u %llu %llu\n",
+					printf("%llu %u %llu %llu %llu %llu %u %llu %u %llu\n",
 							total_sent,
 							sync_req_sz,
 							src.src_delta.dup_header_sz,
@@ -894,6 +894,7 @@ int main(int argc,char *argv[])
 							total_recved,
 							checksum_head_sz,
 							checksums_sz,
+							src.statistics.duplicated_block,
 							src.size);
 					goto clean_up;
 				}

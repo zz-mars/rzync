@@ -8,10 +8,11 @@ BEGIN{
 	tr=0;
 	tckh=0;
 	tcks=0;
+	tdupblk=0;
 	tfsz=0;
 }
 {
-	if (NF==9) {
+	if (NF==10) {
 		ts=ts+$1;
 		treq=treq+$2;
 		tduph=tduph+$3;
@@ -20,7 +21,8 @@ BEGIN{
 		tr=tr+$6;
 		tckh=tckh+$7;
 		tcks=tcks+$8;
-		tfsz=tfsz+$9;
+		tdupblk=tdupblk+$9;
+		tfsz=tfsz+$10;
 	} else if (NF==1) {
 		t = $1;
 	}
@@ -28,7 +30,6 @@ BEGIN{
 END{
 	total_interact_data=ts+tr;
 	compression_ratio=100.0*(tfsz-total_interact_data)/tfsz;
-	printf("++++++++++++++++++++++++++++++++++++++++++++++\n");
 	printf("time elapsed -------- : %u\n",t);
 	printf("total_sent ---------- : %u\n",ts);
 	printf("total_req ----------- : %u\n",treq);
@@ -39,6 +40,7 @@ END{
 	printf("total_checksum_h ---- : %u\n",tckh);
 	printf("total_checksums ----- : %u\n",tcks);
 	printf("total_interact_data - : %u\n",total_interact_data);
+	printf("total_dup_blks ------ : %u\n",tdupblk);
 	printf("total_filesz -------- : %u\n",tfsz);
 	printf("compression_ratio --- : %f%\n",compression_ratio);
 }
