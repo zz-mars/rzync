@@ -261,14 +261,14 @@ int parse_checksum(char *buf,checksum_t *chksm)
 	return PARSE_CHECKSUM_OK;
 }
 
-inline unsigned int very_simple_hash(unsigned int num,unsigned int mod)
+inline unsigned int very_simple_hash(unsigned int num,unsigned int mask)
 {
-	return num % mod;
+	return num & mask;
 }
 
 inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 {
-	unsigned int hash_pos = very_simple_hash(chksm->rcksm,ht->hash_nr);
+	unsigned int hash_pos = very_simple_hash(chksm->rcksm,ht->hash_mask);
 	list_add(&chksm->hash,&ht->slots[hash_pos]);
 }
 
@@ -286,7 +286,7 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 checksum_t *hash_search(checksum_hashtable_t *ht,unsigned int rcksm)
 {
 //	printf("hash_search -- hash with %u\n",rcksm);
-	unsigned int hash_pos = very_simple_hash(rcksm,ht->hash_nr);
+	unsigned int hash_pos = very_simple_hash(rcksm,ht->hash_mask);
 //	printf("hash_search -- hash_pos %u\n",hash_pos);
 	struct list_head *lh;
 	checksum_t *cksm;

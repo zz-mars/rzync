@@ -46,13 +46,14 @@ unsigned int adler32_rolling_checksum(unsigned int csum, int len, unsigned char 
  * initialize a hash table with 'hash_nr' slots */
 checksum_hashtable_t *checksum_hashtable_init(unsigned int hash_bits)
 {
-	checksum_hashtable_t *ht = (checksum_hashtable_t*)malloc(sizeof(checksum_hashtable_t));
+	checksum_hashtable_t *ht = malloc(sizeof(checksum_hashtable_t));
 	if(!ht) {
 		perror("malloc for checksum_hashtable_t");
 		return NULL;
 	}
 	ht->hash_bits = hash_bits;
 	ht->hash_nr = (1<<hash_bits);
+	ht->hash_mask = ht->hash_nr - 1;
 	ht->slots = (struct list_head*)malloc(ht->hash_nr*sizeof(struct list_head));
 	if(!ht->slots) {
 		perror("malloc for hash slots");

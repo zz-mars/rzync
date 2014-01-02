@@ -700,7 +700,7 @@ void on_read(int sock,short event,void *arg)
 						goto clean_up;
 					}
 					if(strncmp(ins->md5,sync_md5,RZYNC_MD5_CHECK_SUM_BITS) == 0) {
-						printf("Synchronization succedded!\n");
+						printf("File -- %s -- synchronization succedded!\n",ins->filename);
 					} else {
 						fprintf(stderr,"Final md5 checking fail..\n");
 					}

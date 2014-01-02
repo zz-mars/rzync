@@ -63,6 +63,7 @@ typedef struct {
 /* checksum hash table */
 typedef struct {
 	unsigned int hash_bits;
+	unsigned int hash_mask;
 	unsigned int hash_nr;
 	struct list_head *slots;
 } checksum_hashtable_t;
