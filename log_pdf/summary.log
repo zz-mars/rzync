@@ -1,0 +1,228 @@
++++++++++++++ blk_sz -- 1 +++++++++++++
+time elapsed -------- : 41
+total_sent ---------- : 6971262
+total_req ----------- : 96256
+total_dup_h --------- : 2127857
+total_ndup_h -------- : 29550
+total_delta_data ---- : 4717599
+total_recved -------- : 35263360
+total_checksum_h ---- : 6016
+total_checksums ----- : 35257344
+total_interact_data - : 42234622
+total_dup_blks ------ : 271106
+total_filesz -------- : 282330143
+compression_ratio --- : 85.040697%
++++++++++++++ blk_sz -- 2 +++++++++++++
+time elapsed -------- : 38
+total_sent ---------- : 9368178
+total_req ----------- : 96256
+total_dup_h --------- : 1013209
+total_ndup_h -------- : 26746
+total_delta_data ---- : 8231967
+total_recved -------- : 17628160
+total_checksum_h ---- : 6016
+total_checksums ----- : 17622144
+total_interact_data - : 26996338
+total_dup_blks ------ : 133837
+total_filesz -------- : 282330143
+compression_ratio --- : 90.438025%
++++++++++++++ blk_sz -- 3 +++++++++++++
+time elapsed -------- : 38
+total_sent ---------- : 12359425
+total_req ----------- : 96256
+total_dup_h --------- : 654516
+total_ndup_h -------- : 23086
+total_delta_data ---- : 11585567
+total_recved -------- : 11750528
+total_checksum_h ---- : 6016
+total_checksums ----- : 11744512
+total_interact_data - : 24109953
+total_dup_blks ------ : 88133
+total_filesz -------- : 282330143
+compression_ratio --- : 91.460369%
++++++++++++++ blk_sz -- 4 +++++++++++++
+time elapsed -------- : 39
+total_sent ---------- : 15056863
+total_req ----------- : 96256
+total_dup_h --------- : 479316
+total_ndup_h -------- : 21356
+total_delta_data ---- : 14459935
+total_recved -------- : 8811392
+total_checksum_h ---- : 6016
+total_checksums ----- : 8805376
+total_interact_data - : 23868255
+total_dup_blks ------ : 65398
+total_filesz -------- : 282330143
+compression_ratio --- : 91.545977%
++++++++++++++ blk_sz -- 5 +++++++++++++
+time elapsed -------- : 38
+total_sent ---------- : 17442743
+total_req ----------- : 96256
+total_dup_h --------- : 375200
+total_ndup_h -------- : 20984
+total_delta_data ---- : 16950303
+total_recved -------- : 7048064
+total_checksum_h ---- : 6016
+total_checksums ----- : 7042048
+total_interact_data - : 24490807
+total_dup_blks ------ : 51832
+total_filesz -------- : 282330143
+compression_ratio --- : 91.325472%
++++++++++++++ blk_sz -- 6 +++++++++++++
+time elapsed -------- : 40
+total_sent ---------- : 19477499
+total_req ----------- : 96256
+total_dup_h --------- : 306885
+total_ndup_h -------- : 20759
+total_delta_data ---- : 19053599
+total_recved -------- : 5871744
+total_checksum_h ---- : 6016
+total_checksums ----- : 5865728
+total_interact_data - : 25349243
+total_dup_blks ------ : 42851
+total_filesz -------- : 282330143
+compression_ratio --- : 91.021418%
++++++++++++++ blk_sz -- 7 +++++++++++++
+time elapsed -------- : 39
+total_sent ---------- : 21460683
+total_req ----------- : 96256
+total_dup_h --------- : 258459
+total_ndup_h -------- : 20753
+total_delta_data ---- : 21085215
+total_recved -------- : 5031936
+total_checksum_h ---- : 6016
+total_checksums ----- : 5025920
+total_interact_data - : 26492619
+total_dup_blks ------ : 36446
+total_filesz -------- : 282330143
+compression_ratio --- : 90.616440%
++++++++++++++ blk_sz -- 8 +++++++++++++
+time elapsed -------- : 40
+total_sent ---------- : 23253564
+total_req ----------- : 96256
+total_dup_h --------- : 222543
+total_ndup_h -------- : 20686
+total_delta_data ---- : 22914079
+total_recved -------- : 4402176
+total_checksum_h ---- : 6016
+total_checksums ----- : 4396160
+total_interact_data - : 27655740
+total_dup_blks ------ : 31667
+total_filesz -------- : 282330143
+compression_ratio --- : 90.204468%
++++++++++++++ blk_sz -- 9 +++++++++++++
+time elapsed -------- : 40
+total_sent ---------- : 24861287
+total_req ----------- : 96256
+total_dup_h --------- : 195183
+total_ndup_h -------- : 20441
+total_delta_data ---- : 24549407
+total_recved -------- : 3912960
+total_checksum_h ---- : 6016
+total_checksums ----- : 3906944
+total_interact_data - : 28774247
+total_dup_blks ------ : 27971
+total_filesz -------- : 282330143
+compression_ratio --- : 89.808298%
++++++++++++++ blk_sz -- 10 +++++++++++++
+time elapsed -------- : 41
+total_sent ---------- : 26631759
+total_req ----------- : 96256
+total_dup_h --------- : 173241
+total_ndup_h -------- : 21879
+total_delta_data ---- : 26340383
+total_recved -------- : 3520512
+total_checksum_h ---- : 6016
+total_checksums ----- : 3514496
+total_interact_data - : 30152271
+total_dup_blks ------ : 24999
+total_filesz -------- : 282330143
+compression_ratio --- : 89.320208%
++++++++++++++ blk_sz -- 11 +++++++++++++
+time elapsed -------- : 41
+total_sent ---------- : 28151606
+total_req ----------- : 96256
+total_dup_h --------- : 155441
+total_ndup_h -------- : 23526
+total_delta_data ---- : 27876383
+total_recved -------- : 3200000
+total_checksum_h ---- : 6016
+total_checksums ----- : 3193984
+total_interact_data - : 31351606
+total_dup_blks ------ : 22590
+total_filesz -------- : 282330143
+compression_ratio --- : 88.895410%
++++++++++++++ blk_sz -- 12 +++++++++++++
+time elapsed -------- : 41
+total_sent ---------- : 29617319
+total_req ----------- : 96256
+total_dup_h --------- : 140889
+total_ndup_h -------- : 23087
+total_delta_data ---- : 29357087
+total_recved -------- : 2933376
+total_checksum_h ---- : 6016
+total_checksums ----- : 2927360
+total_interact_data - : 32550695
+total_dup_blks ------ : 20587
+total_filesz -------- : 282330143
+compression_ratio --- : 88.470698%
++++++++++++++ blk_sz -- 13 +++++++++++++
+time elapsed -------- : 41
+total_sent ---------- : 31048187
+total_req ----------- : 96256
+total_dup_h --------- : 128673
+total_ndup_h -------- : 23355
+total_delta_data ---- : 30799903
+total_recved -------- : 2707072
+total_checksum_h ---- : 6016
+total_checksums ----- : 2701056
+total_interact_data - : 33755259
+total_dup_blks ------ : 18895
+total_filesz -------- : 282330143
+compression_ratio --- : 88.044047%
++++++++++++++ blk_sz -- 14 +++++++++++++
+time elapsed -------- : 42
+total_sent ---------- : 32692157
+total_req ----------- : 96256
+total_dup_h --------- : 118168
+total_ndup_h -------- : 24070
+total_delta_data ---- : 32453663
+total_recved -------- : 2512640
+total_checksum_h ---- : 6016
+total_checksums ----- : 2506624
+total_interact_data - : 35204797
+total_dup_blks ------ : 17430
+total_filesz -------- : 282330143
+compression_ratio --- : 87.530628%
++++++++++++++ blk_sz -- 15 +++++++++++++
+time elapsed -------- : 42
+total_sent ---------- : 33850859
+total_req ----------- : 96256
+total_dup_h --------- : 109308
+total_ndup_h -------- : 24272
+total_delta_data ---- : 33621023
+total_recved -------- : 2345472
+total_checksum_h ---- : 6016
+total_checksums ----- : 2339456
+total_interact_data - : 36196331
+total_dup_blks ------ : 16192
+total_filesz -------- : 282330143
+compression_ratio --- : 87.179431%
++++++++++++++ blk_sz -- 16 +++++++++++++
+time elapsed -------- : 42
+total_sent ---------- : 35369946
+total_req ----------- : 96256
+total_dup_h --------- : 101499
+total_ndup_h -------- : 27456
+total_delta_data ---- : 35144735
+total_recved -------- : 2198016
+total_checksum_h ---- : 6016
+total_checksums ----- : 2192000
+total_interact_data - : 37567962
+total_dup_blks ------ : 15087
+total_filesz -------- : 282330143
+compression_ratio --- : 86.693606%
+
+real	0m31.290s
+user	0m9.909s
+sys	0m1.412s
