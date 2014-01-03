@@ -1,14 +1,15 @@
 #include "cdc.h"
+#include "adler32.h"
 #include "md5.h"
 #include <stdio.h>
 #include <fcntl.h>
+#include <assert.h>
 
 int file_cdc(char* filename,char* cdc_filename,int* block_nr_p)
 {
 	unsigned char buf[BUF_MAX_SZ];
 	unsigned char block_buf[BLOCK_MAX_SZ];
 	unsigned char wbuf[BLOCK_WIN_SZ];
-	unsigned int adler32_checksum;
 
 	unsigned int bpos = 0;
 	unsigned int rwsize = 0;
@@ -55,7 +56,7 @@ int file_cdc(char* filename,char* cdc_filename,int* block_nr_p)
 		unsigned char md5[CDC_MD5_LEN+1];
 		while((head + BLOCK_WIN_SZ) <= tail) {
 			memcpy(wbuf,buf+head,BLOCK_WIN_SZ);
-			hkey = (block_sz == MIN_BLK_SZ) ? adler32_checksum(wbuf,BLOCK_WIN_SZ) :
+			hkey = (block_sz == MIN_BLK_SZ) ? adler32_checksum(wbuf,BLOCK_WIN_SZ) : 
 				adler32_rolling_checksum(hkey,BLOCK_WIN_SZ,buf[head-1],buf[head+BLOCK_WIN_SZ-1]);
 			if((hkey % CHUNK_CDC_D) == CHUNK_CDC_R) {
 				memcpy(block_buf+block_sz,buf+head,BLOCK_WIN_SZ);
@@ -78,7 +79,8 @@ blk_found:
 			md5[CDC_MD5_LEN] = '\n';
 			/* write to file */
 			if(write(cdcfd,md5,CDC_MD5_LEN+1) != (CDC_MD5_LEN+1)) {
-				goto close(fd);
+				perror("write");
+				goto close_fd;
 			}
 			offset += block_sz;
 			unsigned int bytes_in_buf = tail - head;
@@ -94,11 +96,43 @@ blk_found:
 	}
 
 	/* last block */
+	int bytes_left = block_sz + bpos + rwsize;
+	unsigned int last_blk_sz = bytes_left > 0?bytes_left:0;
+	if(last_blk_sz > 0) {
+		block_nr++;
+		memcpy(block_buf+block_sz,buf,bpos+rwsize);
+		unsigned char md5[CDC_MD5_LEN+1];
+		md5s_of_str(block_buf,last_blk_sz,md5);
+		md5[CDC_MD5_LEN] = '\n';
+		if(write(cdcfd,md5,CDC_MD5_LEN+1) != (CDC_MD5_LEN+1)) {
+			perror("write");
+			goto close_fd;
+		}
+	}
+
 	*block_nr_p = block_nr;
 	ret = CDC_OK;
 close_fd:
 	close(fd);
 rt:
 	return ret;
+}
+
+int main(int argc,char* argv[])
+{
+	if(argc != 3) {
+		fprintf(stderr,"Usage : ./cdc <src_file> <cdc_file>\n");
+		return 1;
+	}
+	char* filename = argv[1];
+	char* cdc_file = argv[2];
+
+	int block_nr;
+
+	if(file_cdc(filename, cdc_file, &block_nr) != CDC_OK) {
+		fprintf(stderr,"CDC ERR -- %s\n",filename);
+		return 1;
+	}
+	return 0;
 }
 

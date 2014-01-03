@@ -19,6 +19,6 @@ enum {
 	CDC_OK = 0,
 	CDC_ERR
 };
-int file_cdc(char* filename);
+int file_cdc(char* filename,char* cdc_file,int* block_nr_p);
 
 #endif
