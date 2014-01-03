@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <assert.h>
 #include "md5.h"
 #include "adler32.h"
 
@@ -127,7 +128,6 @@ int file_cdc(int fd)
 
 	unsigned int block_sz = 0;
 	unsigned int block_nr = 0;	// how many blocks
-	unsigned long long offset = 0;
 
 	unsigned char buf[BUF_MAX_SZ];
 	unsigned int exp_rwsize = BUF_MAX_SZ;
