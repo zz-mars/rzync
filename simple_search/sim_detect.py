@@ -30,7 +30,6 @@ if __name__ == '__main__':
 		sys.exit(1)
 	cdc_file = sys.argv[1];
 	lucene.initVM(vmargs=['-Djava.awt.headless=true'])
-	print 'lucene', lucene.VERSION
 	base_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
 
 	# directory to search
@@ -43,14 +42,18 @@ if __name__ == '__main__':
 	f.close()
 	dict_res = dict()
 	for eachline in lines:
-		query = QueryParser(Version.LUCENE_CURRENT,"name",
+		query = QueryParser(Version.LUCENE_CURRENT,"contents",
 				analyzer).parse(eachline)
 		scoreDocs = searcher.search(query,50).scoreDocs
-		print "%s total matching documents." % len(scoreDocs)
 
 		for scoreDoc in scoreDocs:
 			doc = searcher.doc(scoreDoc.doc)
-			print 'path:',doc.get("path"),'name:',doc.get("name")
-#			dict_res[doc.get("name")]
+			matched_file = doc.get('name')
+			try:
+				dict_res[matched_file] += 1
+			except KeyError:
+				dict_res[matched_file] = 1
+	for k in dict_res.keys():
+		print "matched file %s blocks %d\n" % (k,dict_res[k])
 	del searcher
 
