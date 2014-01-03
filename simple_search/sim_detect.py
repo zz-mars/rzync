@@ -62,5 +62,6 @@ if __name__ == '__main__':
 			if dict_res[k] > dict_res[most_match_key]:
 				most_match_key = k
 		print "%s %d" % (k,dict_res[most_match_key])
+	del dict_res
 	del searcher
 
