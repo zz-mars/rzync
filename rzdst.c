@@ -1,5 +1,6 @@
 #include "rzync.h"
 #include "util.h"
+#include "adler32.h"
 
 /* set default block size to 4KB */
 //static unsigned int dst_block_sz = RZYNC_BLOCK_SIZE;
@@ -310,20 +311,17 @@ int prepare_checksums(rzync_dst_t *ins)
 			free(fbuf);
 			return PREPARE_CHECKSUMS_ERR;
 		}
-		/* clear chksm */
-		checksum_t chksm;
-		memset(&chksm,0,sizeof(chksm));
 		/* set block nr */
-		chksm.block_nr = ins->dst_local_file.checksum_sent + i;
+		unsigned int chksm_block_nr = ins->dst_local_file.checksum_sent + i;
 		/* calculate rolling chcksm */
-		chksm.rcksm = adler32_checksum(fbuf,dst_block_sz);
-	//	unsigned int s1 = chksm.rcksm & 0xffff;
-	//	unsigned int s2 = chksm.rcksm >> 16;
+		unsigned int chksm_rcksm = adler32_checksum(fbuf,dst_block_sz);
 		/* calculate md5 */
-		md5s_of_str(fbuf,dst_block_sz,chksm.md5);
+		unsigned char chksm_md5[RZYNC_MD5_CHECK_SUM_BITS+1];
+		memset(chksm_md5,0,RZYNC_MD5_CHECK_SUM_BITS+1);
+		md5s_of_str(fbuf,dst_block_sz,chksm_md5);
 		/* put into buffer */
 		snprintf(p,RZYNC_CHECKSUM_SIZE,"$%u\n$%u\n$%s\n",
-				chksm.block_nr,chksm.rcksm,chksm.md5);
+				chksm_block_nr,chksm_rcksm,chksm_md5);
 	//	printf("%s",p);
 		p += RZYNC_CHECKSUM_SIZE;
 	}

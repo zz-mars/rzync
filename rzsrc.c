@@ -1,7 +1,46 @@
 #include "rzync.h"
 #include "util.h"
+#include "adler32.h"
 
 static unsigned src_block_sz;
+
+/* ----------------- checksum hashtable ------------------ */
+/* checksum_hashtable_init :
+ * initialize a hash table with 'hash_nr' slots */
+checksum_hashtable_t *checksum_hashtable_init(unsigned int hash_bits)
+{
+	checksum_hashtable_t *ht = malloc(sizeof(checksum_hashtable_t));
+	if(!ht) {
+		perror("malloc for checksum_hashtable_t");
+		return NULL;
+	}
+	ht->hash_bits = hash_bits;
+	ht->hash_nr = (1<<hash_bits);
+	ht->hash_mask = ht->hash_nr - 1;
+	ht->slots = (struct list_head*)malloc(ht->hash_nr*sizeof(struct list_head));
+	if(!ht->slots) {
+		perror("malloc for hash slots");
+		free(ht);
+		return NULL;
+	}
+
+	int i;
+	for(i=0;i<ht->hash_nr;i++) {
+		list_head_init(&ht->slots[i]);
+	}
+	return ht;
+}
+
+void checksum_hashtable_destory(checksum_hashtable_t *ht)
+{
+	if(!ht) {
+		return;
+	}
+	if(ht->slots) {
+		free(ht->slots);
+	}
+	free(ht);
+}
 
 enum {
 	INIT_RZYNC_SRC_OK = 0,

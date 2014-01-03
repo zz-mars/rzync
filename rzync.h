@@ -31,23 +31,6 @@
 #define RZYNC_MD5_CHECK_SUM_BITS	32
 #define RZYNC_MAX_NAME_LENGTH		256
 
-/* ----------------- rolling hash ------------------ */
-/*
-typedef union {
-	unsigned int rolling_checksum;
-	struct {
-		unsigned short A;
-		unsigned short B;
-	} rolling_AB;
-} rolling_checksum_t;
-
-rolling_checksum_t adler32_direct
-rolling_checksum_t adler32_rolling
-*/
-unsigned int adler32_checksum(unsigned char* buf,int len);
-unsigned int adler32_rolling_checksum(unsigned int csum,int len,unsigned char c1,unsigned char c2);
-
-
 /* ----------------- hash table ------------------ */
 /* checksum information
  * CANNOT BE USED AS INTER-MACHINE TRANSMISSION FORMAT
@@ -69,9 +52,6 @@ typedef struct {
 } checksum_hashtable_t;
 
 #define CHECKSUN_HASH_SLOTS_NR	4096
-
-checksum_hashtable_t *checksum_hashtable_init(unsigned int nr);
-void checksum_hashtable_destory(checksum_hashtable_t *ht);
 
 #define RZYNC_BUF_SIZE	(1<<15)	// 32KB for client buffer
 #define RZYNC_DETLTA_BUF_SIZE	(1<<15)	// 32KB for src file buffer
