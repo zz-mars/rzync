@@ -82,7 +82,7 @@ class IndexFiles(object):
 			# traverse through the doc directory
 			for filename in filenames:
 				# only if this file ends with '.c'
-				if not filename.endswith('.c'):
+				if not filename.endswith('.cdc'):
 					continue
 				try:
 					# only add the filename and path for indexing
@@ -94,10 +94,10 @@ class IndexFiles(object):
 					doc = Document()
 					doc.add(Field("name",filename,t1))
 					doc.add(Field("path",root,t1))
-				#	if len(contents) > 0:
-				#		doc.add(Field("contents",contents,t2))
-				#	else:
-				#		print "warning: no content in ",filename
+					if len(contents) > 0:
+						doc.add(Field("contents",contents,t2))
+					else:
+						print "warning: no content in ",filename
 					writer.addDocument(doc)
 				except Exception,e:
 					print "failed in indexDocs:",e

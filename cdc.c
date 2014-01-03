@@ -127,7 +127,7 @@ int main(int argc,char* argv[])
 		return 1;
 	}
 
-	file_cdc(fd);
+	file_chunk_cdc(fd);
 
 	close(fd);
 
