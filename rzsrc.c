@@ -4,9 +4,6 @@
 
 static unsigned src_block_sz;
 
-/* ----------------- checksum hashtable ------------------ */
-/* checksum_hashtable_init :
- * initialize a hash table with 'hash_nr' slots */
 checksum_hashtable_t *checksum_hashtable_init(unsigned int hash_bits)
 {
 	checksum_hashtable_t *ht = malloc(sizeof(checksum_hashtable_t));
@@ -174,14 +171,6 @@ inline int parse_checksum_header(rzync_src_t *src)
 		return PARSE_CHECKSUM_HEADER_ERR;
 	}
 	src->checksum_header.block_nr = i;
-	/* no block size now */
-//	src->checksum_header.block_sz = str2i(&p,'$','\n');
-//	if(src->checksum_header.block_sz == STR2I_PARSE_FAIL) {
-//		return PARSE_CHECKSUM_HEADER_ERR;
-//	}
-//	printf("checksumheader -- block_nr %u -- block_sz %u\n",
-//			src->checksum_header.block_nr,
-//			src->checksum_header.block_sz);
 	return PARSE_CHECKSUM_HEADER_OK;
 }
 
@@ -218,7 +207,6 @@ int prepare_receive_checksums(rzync_src_t *src)
 
 	/* make a hash table for the checksums */
 	unsigned int hash_bits = choose_hash_bits(src->checksum_header.block_nr);
-//	printf("hash_bits -- %u hash_nr -- %u\n",hash_bits,(1<<hash_bits));
 	src->hashtable = checksum_hashtable_init(hash_bits);
 	if(!src->hashtable) {
 		return PREPARE_RECV_CHCKSMS_ERR;
@@ -284,15 +272,6 @@ int parse_checksum(char *buf,checksum_t *chksm)
 		return PARSE_CHECKSUM_ERR;
 	}
 	chksm->rcksm = i;
-	/*
-	unsigned int s1 = i;
-	i = str2i(&p,'$','\n');
-	if(i == STR2I_PARSE_FAIL) {
-		return PARSE_CHECKSUM_ERR;
-	}
-	unsigned int s2 = i;
-	chksm->rcksm = (s1 & 0xffff) + (s2 << 16);
-	*/
 	if(*p++ != '$') {
 		return PARSE_CHECKSUM_ERR;
 	}
@@ -317,16 +296,10 @@ inline void hash_insert(checksum_hashtable_t *ht,checksum_t *chksm)
 			lh!=&ht->slots[slot_nr];	\
 			lh=lh->next,chksm=checksumof(lh))
 
-//#define for_each_list_head_in_slot(ht,slot_nr,lh,chksm)	\
-//	for(lh=ht->slots[slot_nr].next,chksm=checksumof(lh);lh!=&ht->slots[slot_nr];lh=lh->next)
-
-/* only compare the rolling hash
- * checking the md5, if rolling hash matches */
+/* Hash with rolling checksum */
 checksum_t *hash_search(checksum_hashtable_t *ht,unsigned int rcksm)
 {
-//	printf("hash_search -- hash with %u\n",rcksm);
 	unsigned int hash_pos = very_simple_hash(rcksm,ht->hash_mask);
-//	printf("hash_search -- hash_pos %u\n",hash_pos);
 	struct list_head *lh;
 	checksum_t *cksm;
 	for_each_checksum_in_slot(ht,hash_pos,lh,cksm) {
