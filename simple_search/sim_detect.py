@@ -54,6 +54,6 @@ if __name__ == '__main__':
 			except KeyError:
 				dict_res[matched_file] = 1
 	for k in dict_res.keys():
-		print "matched file %s blocks %d\n" % (k,dict_res[k])
+		print "%s %d\n" % (k,dict_res[k])
 	del searcher
 
