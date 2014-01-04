@@ -53,15 +53,16 @@ if __name__ == '__main__':
 				dict_res[matched_file] += 1
 			except KeyError:
 				dict_res[matched_file] = 1
+	# only print the matched block number
 	if len(dict_res.keys()) == 0:
 		fn = cdc_file.index('/')
-		print "%s 0" % cdc_file[cdc_file.index('/')+1:]
+		print "0"
 	else:
 		most_match_key=dict_res.keys()[0]
 		for k in dict_res.keys():
 			if dict_res[k] > dict_res[most_match_key]:
 				most_match_key = k
-		print "%s %d" % (k,dict_res[most_match_key])
+		print dict_res[most_match_key]
 	del dict_res
 	del searcher
 

@@ -24,7 +24,7 @@ do
 		continue
 	fi
 
-	./cdc "$SRC_DIR/$file" > "$DST_DIR/$file.cdc"
+	./cdc "$SRC_DIR/$file" > "$DST_DIR/$file"
 	if [ $? -ne 0 ] ;then
 		exit 1
 	fi

@@ -81,9 +81,8 @@ class IndexFiles(object):
 		for root, dirnames,filenames in os.walk(root):
 			# traverse through the doc directory
 			for filename in filenames:
-				# only if this file ends with '.c'
-				if not filename.endswith('.cdc'):
-					continue
+			#	if not filename.endswith('.cdc'):
+			#		continue
 				try:
 					# only add the filename and path for indexing
 					path = os.path.join(root,filename)
