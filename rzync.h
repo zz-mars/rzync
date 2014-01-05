@@ -152,7 +152,7 @@ void put_rzyncdst(rzyncdst_freelist_t *fl,rzync_dst_t *cl);
 /* ----------------- PROTOCOL SPECIFICATION ------------------ */
 #define RZYNC_FILE_INFO_SIZE		512	// 512 bytes for file infomation 
 #define RZYNC_CHECKSUM_HEADER_SIZE	32	// 32 bytes for checksum header
-#define RZYNC_CHECKSUM_SIZE			128	// 128 bytes for each checksum
+#define RZYNC_CHECKSUM_SIZE			64	// 64 bytes for each checksum
 #define RZYNC_DELTA_HEDER_SIZE		16
 
 enum src_state {
