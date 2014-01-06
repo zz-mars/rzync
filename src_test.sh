@@ -16,7 +16,7 @@ if [ ! -x "$DIR_LOG" ] ;then
 fi
 
 unlink "$DIR_LOG/$SUMMARY_FILE"	2> /dev/null
-touch "$DIR_LOG/$SUMMARY_FILE"
+(time scp -r -q $DIR_TOS root@$IP_ADDR:/home/rzync/) 2> "$DIR_LOG/$SUMMARY_FILE"
 
 i=0
 for((i=1;i<="$BLK_SZ_LIMIT";i++))
