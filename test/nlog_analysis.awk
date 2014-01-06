@@ -23,9 +23,20 @@ BEGIN{
 		tcks=tcks+$8;
 		tdupblk=tdupblk+$9;
 		tfsz=tfsz+$10;
+	}else{
+		t=$1;
 	}
 }
 END{
-	printf("%u %u %u %u %u %u %u %u %u %u\n",ts,treq,tduph,tnduph,tdd,tr,tckh,tcks,tdupblk,tfsz);
+	total_interact_data=ts+tr;
+	compression_ratio=100.0*(tfsz-total_interact_data)/tfsz;
+	printf("%u\n",t);
+	printf("%u\n",tfsz);
+	printf("%u\n",total_interact_data);
+	printf("%u\n",tcks);
+	printf("%u\n",tduph);
+	printf("%u\n",tnduph);
+	printf("%u\n",tdd);
+	printf("%f%\n",compression_ratio);
 }
 
