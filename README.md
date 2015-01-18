@@ -47,3 +47,4 @@ How does it work?
 5) The protocol is based on the ASCII string and very simply.
    Check rzync.h for more information.
 
+THIS PROJECT IS JUST FOR TEST
